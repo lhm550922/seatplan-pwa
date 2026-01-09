@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>자리배치 PWA (MVP)</title>
+
+  <!-- PWA 핵심: manifest -->
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <meta name="theme-color" content="#111827" />
+
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="header">
+    <h1>자리배치 PWA (MVP)</h1>
+    <p class="sub">PWA 뼈대 + 오프라인 + 설치 테스트</p>
+  </header>
+
+  <main class="card">
+    <h2>상태</h2>
+    <ul>
+      <li>서비스워커: <span id="swStatus">확인 중...</span></li>
+      <li>버전: <span id="ver">v0.1</span></li>
+    </ul>
+
+    <div class="row">
+      <button id="testBtn">버튼 테스트</button>
+      <button id="installHintBtn">설치 방법 보기</button>
+    </div>
+
+    <div id="log" class="log" aria-live="polite"></div>
+  </main>
+
+  <footer class="footer">
+    <small>ⓒ SeatPlan MVP</small>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>

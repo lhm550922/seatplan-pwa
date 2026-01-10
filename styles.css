@@ -1,64 +1,267 @@
-:root {
-  --bg: #0b1220;
-  --card: #111827;
-  --text: #e5e7eb;
-  --muted: #9ca3af;
-  --line: #243047;
-  --btn: #1f2937;
-  --btnHover: #2b364a;
+:root{
+  --bg:#0b1220;
+  --card:#111827;
+  --text:#e5e7eb;
+  --muted:#9ca3af;
+  --line:#243047;
+  --btn:#1f2937;
+  --btnHover:#2b364a;
+  --danger:#ef4444;
+  --ok:#22c55e;
 }
 
-* { box-sizing: border-box; }
-body {
-  margin: 0;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
   background: radial-gradient(1200px 600px at 20% 0%, #12203b, var(--bg));
-  color: var(--text);
+  color:var(--text);
 }
 
-.header {
-  padding: 24px 16px 8px;
-  max-width: 900px;
-  margin: 0 auto;
+.header{
+  padding:24px 16px 8px;
+  max-width:1200px;
+  margin:0 auto;
 }
-.header h1 { margin: 0 0 6px; font-size: 24px; }
-.sub { margin: 0; color: var(--muted); }
+.headerTop{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  align-items:flex-end;
+}
+.header h1{margin:0 0 6px;font-size:24px}
+.sub{margin:0;color:var(--muted)}
 
-.card {
-  max-width: 900px;
-  margin: 12px auto;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: rgba(17, 24, 39, 0.8);
-  box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+.status{display:flex;gap:8px;flex-wrap:wrap}
+.pill{
+  display:inline-flex;
+  gap:6px;
+  align-items:center;
+  padding:8px 10px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:rgba(17,24,39,.7);
+  color:var(--muted);
+}
+.pill b{color:var(--text); font-weight:700}
+
+.layout{
+  max-width:1200px;
+  margin:12px auto 30px;
+  padding:0 16px;
+  display:grid;
+  grid-template-columns: 360px 1fr;
+  gap:12px;
+}
+@media (max-width: 980px){
+  .layout{grid-template-columns:1fr}
 }
 
-.row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
-button {
-  border: 1px solid var(--line);
-  background: var(--btn);
-  color: var(--text);
-  padding: 10px 12px;
-  border-radius: 10px;
-  cursor: pointer;
-}
-button:hover { background: var(--btnHover); }
-
-.log {
-  margin-top: 12px;
-  padding: 12px;
-  border-radius: 10px;
-  background: rgba(0,0,0,0.25);
-  border: 1px dashed var(--line);
-  color: var(--muted);
-  min-height: 48px;
-  white-space: pre-wrap;
+.card{
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:rgba(17,24,39,.82);
+  box-shadow:0 10px 25px rgba(0,0,0,.25);
 }
 
-.footer {
-  max-width: 900px;
-  margin: 18px auto 30px;
-  padding: 0 16px;
-  color: var(--muted);
+.panel{
+  padding:16px;
+}
+.panel h2{
+  margin:0 0 8px;
+  font-size:16px;
+}
+.hint{
+  margin:0 0 10px;
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.4;
+}
+
+textarea{
+  width:100%;
+  min-height:170px;
+  resize:vertical;
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 12px;
+  background:rgba(0,0,0,.2);
+  color:var(--text);
+  outline:none;
+}
+textarea:focus{border-color:#3b82f6}
+
+.row{
+  display:flex;
+  gap:10px;
+  margin-top:10px;
+  flex-wrap:wrap;
+}
+.field{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  flex:1;
+  min-width:100px;
+}
+label{font-size:12px;color:var(--muted)}
+select{
+  border:1px solid var(--line);
+  background:rgba(0,0,0,.18);
+  color:var(--text);
+  padding:10px 10px;
+  border-radius:10px;
+  outline:none;
+}
+
+button{
+  border:1px solid var(--line);
+  background:var(--btn);
+  color:var(--text);
+  padding:10px 12px;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:600;
+}
+button:hover{background:var(--btnHover)}
+button.ghost{
+  background:transparent;
+}
+button.ghost:hover{
+  background:rgba(255,255,255,.06);
+}
+button.danger{
+  border-color:rgba(239,68,68,.35);
+  color:#fecaca;
+}
+button.danger:hover{background:rgba(239,68,68,.12)}
+
+.sep{
+  margin:14px 0;
+  border:none;
+  border-top:1px solid rgba(255,255,255,.06);
+}
+
+.log{
+  margin-top:12px;
+  padding:12px;
+  border-radius:10px;
+  background:rgba(0,0,0,0.25);
+  border:1px dashed var(--line);
+  color:var(--muted);
+  min-height:44px;
+  white-space:pre-wrap;
+  font-size:12px;
+}
+
+.stageWrap{
+  padding:14px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.stageHeader{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.board{
+  border:1px solid rgba(34,197,94,.35);
+  background:rgba(34,197,94,.08);
+  padding:8px 12px;
+  border-radius:12px;
+}
+.boardLabel{
+  color:#bbf7d0;
+  font-weight:700;
+  letter-spacing:.5px;
+}
+.stageTools{
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.toggle{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  color:var(--muted);
+  font-size:13px;
+}
+.toggle input{ transform: translateY(1px); }
+
+.stage{
+  padding:12px;
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:12px;
+  background:rgba(0,0,0,.18);
+  overflow:auto;
+}
+.grid{
+  display:grid;
+  gap:10px;
+  justify-content:center;
+}
+
+.seat{
+  width:130px;
+  height:70px;
+  border-radius:12px;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.04);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+  user-select:none;
+}
+.seat.pair{
+  width:270px; /* 2인 짝상은 칸 폭만 넓게 */
+}
+.seat .name{
+  font-weight:800;
+  font-size:16px;
+  color:var(--text);
+  padding:0 10px;
+  text-align:center;
+  word-break:keep-all;
+}
+.seat .empty{
+  color:rgba(156,163,175,.8);
+  font-weight:600;
+}
+.seat .no{
+  position:absolute;
+  top:6px;
+  left:8px;
+  font-size:11px;
+  color:rgba(156,163,175,.9);
+}
+.seat.dragging{
+  opacity:.5;
+  outline:2px dashed rgba(59,130,246,.8);
+}
+.seat.dropOk{
+  outline:2px solid rgba(34,197,94,.8);
+}
+.seat.dropBad{
+  outline:2px solid rgba(239,68,68,.8);
+}
+
+.stageFooter{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  color:var(--muted);
+  font-size:13px;
+  padding:0 4px;
+}
+
+.hiddenCanvas{
+  position:fixed;
+  left:-99999px;
+  top:-99999px;
 }

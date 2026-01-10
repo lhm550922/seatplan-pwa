@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>자리배치 PWA (MVP)</title>
 
-  <!-- PWA 핵심: manifest -->
   <link rel="manifest" href="./manifest.webmanifest" />
   <meta name="theme-color" content="#111827" />
 
@@ -13,28 +12,109 @@
 </head>
 <body>
   <header class="header">
-    <h1>자리배치 PWA (MVP)</h1>
-    <p class="sub">PWA 뼈대 + 오프라인 + 설치 테스트</p>
+    <div class="headerTop">
+      <div>
+        <h1>자리배치 (MVP)</h1>
+        <p class="sub">학생 입력 → 자동 배치 → 드래그로 교체 → PNG 저장</p>
+      </div>
+      <div class="status">
+        <span class="pill">서비스워커: <b id="swStatus">확인 중...</b></span>
+        <span class="pill">버전: <b id="ver">v0.2</b></span>
+      </div>
+    </div>
   </header>
 
-  <main class="card">
-    <h2>상태</h2>
-    <ul>
-      <li>서비스워커: <span id="swStatus">확인 중...</span></li>
-      <li>버전: <span id="ver">v0.1</span></li>
-    </ul>
+  <main class="layout">
+    <!-- 왼쪽: 입력/옵션 -->
+    <section class="panel card">
+      <h2>학생 명단</h2>
+      <p class="hint">
+        한 줄에 한 명(예: 홍길동) 또는 쉼표로도 가능(예: 홍길동, 김민지, …).<br/>
+        학생 수가 30명보다 적으면 빈 자리가 남고, 많으면 초과분은 배치되지 않아요.
+      </p>
 
-    <div class="row">
-      <button id="testBtn">버튼 테스트</button>
-      <button id="installHintBtn">설치 방법 보기</button>
-    </div>
+      <textarea id="studentsInput" placeholder="예)
+홍길동
+김민지
+박서준
+..."></textarea>
 
-    <div id="log" class="log" aria-live="polite"></div>
+      <div class="row">
+        <div class="field">
+          <label for="cols">열(가로)</label>
+          <select id="cols">
+            <option value="4">4</option>
+            <option value="5" selected>5</option>
+            <option value="6">6</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="rows">행(세로)</label>
+          <select id="rows">
+            <option value="5">5</option>
+            <option value="6" selected>6</option>
+            <option value="7">7</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="seatType">책상</label>
+          <select id="seatType">
+            <option value="single" selected>1인 책상</option>
+            <option value="pair">2인 짝상(표시만)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="autoFillBtn">자동 배치</button>
+        <button id="shuffleBtn" class="ghost">셔플</button>
+        <button id="clearBtn" class="ghost danger">비우기</button>
+      </div>
+
+      <hr class="sep"/>
+
+      <h2>내보내기</h2>
+      <p class="hint">배치도를 PNG로 저장해 바로 출력할 수 있어요.</p>
+      <div class="row">
+        <button id="downloadPngBtn">PNG 저장</button>
+        <button id="printBtn" class="ghost">인쇄</button>
+      </div>
+
+      <div id="log" class="log" aria-live="polite"></div>
+    </section>
+
+    <!-- 오른쪽: 배치도 -->
+    <section class="card stageWrap">
+      <div class="stageHeader">
+        <div class="board">
+          <span class="boardLabel">칠판</span>
+        </div>
+        <div class="stageTools">
+          <label class="toggle">
+            <input type="checkbox" id="showSeatNo" />
+            <span>좌석번호</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="showEmpty" checked />
+            <span>빈자리 표시</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="stage">
+        <div id="grid" class="grid" aria-label="좌석 배치도"></div>
+      </div>
+
+      <div class="stageFooter">
+        <div class="miniHint">
+          ⓘ 학생 이름이 적힌 칸을 <b>드래그</b>해서 다른 칸 위에 놓으면 서로 자리 교체됩니다.
+        </div>
+      </div>
+    </section>
   </main>
 
-  <footer class="footer">
-    <small>ⓒ SeatPlan MVP</small>
-  </footer>
+  <!-- PNG 저장용 캔버스(화면에 안 보임) -->
+  <canvas id="exportCanvas" class="hiddenCanvas" width="1600" height="900"></canvas>
 
   <script src="./app.js"></script>
 </body>

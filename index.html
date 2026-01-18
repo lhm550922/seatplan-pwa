@@ -3,118 +3,332 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>자리배치 PWA (MVP)</title>
-
   <link rel="manifest" href="./manifest.webmanifest" />
-  <meta name="theme-color" content="#111827" />
-
   <link rel="stylesheet" href="./styles.css" />
+  <title>자리배치 PWA</title>
 </head>
 <body>
   <header class="header">
     <div class="headerTop">
       <div>
-        <h1>자리배치 (MVP)</h1>
-        <p class="sub">학생 입력 → 자동 배치 → 드래그로 교체 → PNG 저장</p>
+        <h1>자리배치 PWA <span style="opacity:.65;font-weight:900">v0.40</span></h1>
+        <p class="sub">책상 배열 → 학생 입력 → 자동 배치</p>
       </div>
       <div class="status">
-        <span class="pill">서비스워커: <b id="swStatus">확인 중...</b></span>
-        <span class="pill">버전: <b id="ver">v0.2</b></span>
+        <div class="pill">Service Worker: <b id="swStatus">확인 중…</b></div>
       </div>
     </div>
   </header>
 
   <main class="layout">
-    <!-- 왼쪽: 입력/옵션 -->
-    <section class="panel card">
-      <h2>학생 명단</h2>
-      <p class="hint">
-        한 줄에 한 명(예: 홍길동) 또는 쉼표로도 가능(예: 홍길동, 김민지, …).<br/>
-        학생 수가 30명보다 적으면 빈 자리가 남고, 많으면 초과분은 배치되지 않아요.
-      </p>
-
-      <textarea id="studentsInput" placeholder="예)
-홍길동
-김민지
-박서준
-..."></textarea>
-
-      <div class="row">
-        <div class="field">
-          <label for="cols">열(가로)</label>
-          <select id="cols">
-            <option value="4">4</option>
-            <option value="5" selected>5</option>
-            <option value="6">6</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="rows">행(세로)</label>
-          <select id="rows">
-            <option value="5">5</option>
-            <option value="6" selected>6</option>
-            <option value="7">7</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="seatType">책상</label>
-          <select id="seatType">
-            <option value="single" selected>1인 책상</option>
-            <option value="pair">2인 짝상(표시만)</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="row">
-        <button id="autoFillBtn">자동 배치</button>
-        <button id="shuffleBtn" class="ghost">셔플</button>
-        <button id="clearBtn" class="ghost danger">비우기</button>
-      </div>
-
-      <hr class="sep"/>
-
-      <h2>내보내기</h2>
-      <p class="hint">배치도를 PNG로 저장해 바로 출력할 수 있어요.</p>
-      <div class="row">
-        <button id="downloadPngBtn">PNG 저장</button>
-        <button id="printBtn" class="ghost">인쇄</button>
-      </div>
-
-      <div id="log" class="log" aria-live="polite"></div>
-    </section>
-
-    <!-- 오른쪽: 배치도 -->
     <section class="card stageWrap">
-      <div class="stageHeader">
-        <div class="board">
-          <span class="boardLabel">칠판</span>
+      <div class="menuBar">
+        <div class="menuLeft menuCol">
+          <div class="menuRow">
+            <button id="openLayoutBtn" class="required">책상 배열</button>
+            <button id="openStudentsBtn" class="required">학생 입력</button>
+            <button id="autoFillBtn" class="required">자동 배치</button>
+          </div>
+
+          <div class="menuRow">
+            <button id="modeGenderBtn" class="ghost">👦👧 성별 지정</button>
+            <button id="modePinBtn" class="ghost">📌 고정 좌석</button>
+            <button id="openOptionsBtn" class="ghost">⚙️ 세부 옵션</button>
+            <button id="clearBtn" class="ghost">초기화</button>
+          </div>
         </div>
-        <div class="stageTools">
-          <label class="toggle">
-            <input type="checkbox" id="showSeatNo" />
-            <span>좌석번호</span>
-          </label>
-          <label class="toggle">
-            <input type="checkbox" id="showEmpty" checked />
-            <span>빈자리 표시</span>
-          </label>
+
+        <div class="menuRight menuCol">
+          <div class="menuRow menuRowRight">
+            <button id="openSaveBtn" class="smallBtn">저장/불러오기</button>
+            <button id="downloadPngBtn" class="smallBtn">이미지 다운로드</button>
+            <button id="printBtn" class="smallBtn">인쇄</button>
+          </div>
+
+          <div class="menuRow menuRowRight">
+            <div id="displayPanelHost" class="displayHost">
+              <div class="displayPanel">
+                <label class="toggle"><input id="showSeatNo" type="checkbox" checked> 좌석 번호 표시</label>
+                <label class="toggle"><input id="showGroups" type="checkbox"> 모둠 번호 표시</label>
+                <label class="toggle"><input id="showGender" type="checkbox"> 성별 표시</label>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="stage">
-        <div id="grid" class="grid" aria-label="좌석 배치도"></div>
+      <div id="modeBanner" class="modeBanner"></div>
+
+      <div id="hintBar" class="hintBar">
+        <div class="hintText">
+          <span class="hintIcon" aria-hidden="true">💡</span>
+          <span>책상을 클릭/드래그하면 자리 이동·교체·삭제가 가능해요.</span>
+        </div>
+        <button id="hintCloseBtn" class="hintCloseBtn" title="닫기" aria-label="닫기">×</button>
       </div>
 
-      <div class="stageFooter">
-        <div class="miniHint">
-          ⓘ 학생 이름이 적힌 칸을 <b>드래그</b>해서 다른 칸 위에 놓으면 서로 자리 교체됩니다.
+      <div id="violationsBar" class="violationsBar"></div>
+
+      <div id="stage" class="stage">
+        <div class="boardBar">
+          <div class="boardSpacer"></div>
+          <div class="boardBig"><div class="boardBigLabel">칠판</div></div>
+          <div class="boardRight">
+            <button id="toggleOrientationBtn" class="boardBtn multiline">칠판을 아래로<br>(교사 시점)</button>
+          </div>
         </div>
+
+        <div id="grid" class="grid" aria-label="자리 배치"></div>
       </div>
+
+      <div id="log" class="log"></div>
+      <canvas id="exportCanvas" class="hiddenCanvas"></canvas>
+
+      <!-- 내부 렌더 옵션(숨김) -->
+      <select id="seatType" class="hidden">
+        <option value="single" selected>single</option>
+      </select>
     </section>
   </main>
 
-  <!-- PNG 저장용 캔버스(화면에 안 보임) -->
-  <canvas id="exportCanvas" class="hiddenCanvas" width="1600" height="900"></canvas>
+  <!-- ===================== Modals ===================== -->
+
+  <!-- 책상 배열 -->
+  <div id="layoutModal" class="modalOverlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modalHead">
+        <div class="modalTitle">책상 배열</div>
+        <button class="xBtn" data-close="layoutModal" aria-label="닫기">×</button>
+      </div>
+      <div class="modalBody">
+        <div class="modalHint">
+          <div class="modalHintPrimary"><span class="hintIcon" aria-hidden="true">💡</span>기본 책상 배열을 선택해 주세요.</div>
+          <div class="modalHintSub">(세부적인 변경은 메인창에서 가능합니다.)</div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label class="stepLabel">&nbsp;▸ 책상 형태</label>
+            <select id="layoutKind">
+              <option value="single">1인 책상</option>
+              <option value="pair">2인 책상(짝)</option>
+              <option value="group">모둠 책상</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>미리보기(계산된 격자)</label>
+            <div id="layoutPreview" class="previewBox"></div>
+          </div>
+        </div>
+
+        <hr class="sep" />
+
+        <div id="accSingle" class="acc">
+          <div class="accHead accHeadSmall">&nbsp;▸ 1인 책상 옵션</div>
+          <div class="accBody">
+            <div class="row">
+              <div class="field">
+                <label>열(가로)</label>
+                <select id="colsSingle">
+                  <option>1</option><option>2</option><option>3</option><option selected>5</option><option>6</option><option>7</option><option>8</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>행(세로)</label>
+                <select id="rowsSingle">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6" selected>6</option>
+            </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="accPair" class="acc hidden">
+          <div class="accHead">&nbsp;▸ 2인 책상(짝) 옵션</div>
+          <div class="accBody">
+            <div class="row">
+              <div class="field">
+                <label>열(짝열, 최대 4)</label>
+                <select id="pairCols">
+                  <option>1</option><option selected>2</option><option>3</option><option>4</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>행(세로)</label>
+                <select id="rowsPair">
+
+                <option>1</option>
+
+                <option>2</option>
+
+                <option>3</option>
+
+                <option>4</option>
+
+                <option>5</option>
+
+                <option selected>6</option>
+
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="accGroup" class="acc hidden">
+          <div class="accHead">&nbsp;▸ 모둠 책상 옵션</div>
+          <div class="accBody">
+            <div class="row">
+              <div class="field">
+                <label>모둠 인원</label>
+                <select id="groupSize">
+                  <option selected>4</option>
+                  <option>5</option>
+                  <option>6</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>모둠 개수</label>
+                <select id="groupCount">
+                  <option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="modalFoot">
+        <button id="applyLayoutBtn">적용</button>
+        <button class="ghost" data-close="layoutModal">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 학생 입력 -->
+  <div id="studentsModal" class="modalOverlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modalHead">
+        <div class="modalTitle">학생 입력</div>
+        <button class="xBtn" data-close="studentsModal" aria-label="닫기">×</button>
+      </div>
+      <div class="modalBody">
+        <div class="modalHint">
+          <div class="modalHintPrimary"><span class="hintIcon" aria-hidden="true">💡</span>학생 명단을 입력하세요.</div>
+          <div class="modalHintSub">형식 : 이름 / 성별 / 학습수준 (*성별과 학습수준은 생략 가능)</div>
+        </div>
+<textarea id="studentsInput" placeholder="예)
+박보검 남 중
+장원영 여 상
+차은우"></textarea>
+      </div>
+      <div class="modalFoot">
+        <button id="applyStudentsBtn">적용</button>
+        <button class="ghost" data-close="studentsModal">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 세부 옵션 -->
+  <div id="optionsModal" class="modalOverlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modalHead">
+        <div class="modalTitle">세부 옵션</div>
+        <button class="xBtn" data-close="optionsModal" aria-label="닫기">×</button>
+      </div>
+      <div class="modalBody">
+        <div class="sectionBlock">
+          <div class="sectionHead">
+            <label class="sectionHeadToggle"><input id="useForbidden" type="checkbox" checked> <span class="sectionTitle">금지쌍</span>
+            <span class="sectionHeadDescInline">-지정한 학생들을 서로 인접하지 않게 배치해요( , 로 구분)</span></label>
+          </div>
+          <textarea id="forbiddenInput" class="miniTextarea" placeholder="예)
+이수지, 정이랑
+유재석, 하하, 유재석, 박명수"></textarea>
+
+          <div class="row" style="margin-top:8px">
+            <label class="toggle"><input id="includeDiagonal" type="checkbox"> 대각선도 인접으로 판단</label>
+          </div>
+        </div>
+
+        <hr class="sep" />
+
+        <div class="sectionBlock">
+          <div class="sectionHead">
+            <label class="sectionHeadToggle"><input id="balanceLevels" type="checkbox"> <span class="sectionTitle">모둠별 수준 분산</span>
+            <span class="sectionHeadDescInline">- 모둠별 학습수준(상/중/하)이 고르게 섞이도록 배치해요</span></label>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label>모둠 인원</label>
+              <select id="groupMode">
+                <option value="none" selected>사용 안 함</option>
+                <option value="4">4명씩</option>
+                <option value="5">5명씩</option>
+                <option value="6">6명씩</option>
+              </select>
+            </div>
+            </div>
+        </div>
+
+        <hr class="sep" />
+
+        <div class="sectionBlock">
+          <div class="sectionHead">
+            <label class="sectionHeadToggle"><input id="useRotation" type="checkbox" checked> <span class="sectionTitle">첫줄/마지막줄 로테이션</span>
+            <span class="sectionHeadDescInline">-맨 앞/ 맨 뒤에 앉은 학생들을 매월 기록해서 골고루 배치해요</span></label>
+          </div>
+          <div class="row">
+            <label class="toggle"><input id="rotateFront" type="checkbox" checked> 앞줄 로테이션 기록</label>
+            <label class="toggle"><input id="rotateBack" type="checkbox" checked> 뒷줄 로테이션 기록</label>
+            <button id="resetHistoryBtn" class="ghost smallBtn">기록 초기화</button>
+          </div>
+        </div>
+</div>
+      <div class="modalFoot">
+          <button id="applyOptionsBtn">적용</button>
+          <button class="ghost" data-close="optionsModal">닫기</button>
+        </div>
+    </div>
+  </div>
+
+  <!-- 저장/불러오기 -->
+  <div id="saveModal" class="modalOverlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modalHead">
+        <div class="modalTitle">저장/불러오기</div>
+        <button class="xBtn" data-close="saveModal" aria-label="닫기">×</button>
+      </div>
+      <div class="modalBody">
+        <div class="row">
+          <div class="field">
+            <label>슬롯</label>
+            <select id="slotSelect"></select>
+          </div>
+          <div class="field" style="align-self:flex-end">
+            <button id="newSlotBtn" class="ghost">새 슬롯</button>
+          </div>
+        </div>
+        <div class="row">
+          <button id="saveBtn">저장</button>
+          <button id="loadBtn" class="ghost">불러오기</button>
+          <button id="deleteSlotBtn" class="ghost">슬롯 삭제</button>
+        </div>
+      </div>
+      <div class="modalFoot">
+        <button class="ghost" data-close="saveModal">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ✅ 모둠 드롭다운(잘림 방지용) : 화면 위 레이어 -->
+  <div id="groupMenu" class="groupMenu hidden" role="listbox" aria-label="모둠 번호 선택"></div>
 
   <script src="./app.js"></script>
 </body>

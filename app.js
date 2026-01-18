@@ -1,548 +1,2136 @@
-const logEl = document.getElementById("log");
-const swStatusEl = document.getElementById("swStatus");
+/* SeatPlan PWA - app.js v0.39
+   변경(요청 반영):
+   1) 고정 좌석(📌): '고정 좌석' 버튼 클릭 시 각 좌석 좌상단에 작은 핀 아이콘 표시(삭제 아이콘과 동일 크기).
+      - 핀 클릭으로 고정/해제
+      - 고정된 좌석은 모드가 꺼져도 핀이 계속 보이고 파란 테두리/배경으로 표시
+      - 별도의 오른쪽 위 '고정됨' 배지 제거
+   2) 모둠 번호 표시: 좌석 전체 강조(노란색) 기능 사용 안 함(없음).
+      - 대신 모둠 태그(좌하단)만 모둠별 색상(1~8) 적용.
+   3) 모둠 드롭다운 잘림 해결:
+      - seat 내부 select 대신, 화면 위에 뜨는 고정(fixed) 메뉴(#groupMenu)로 선택.
+      - 삭제 아이콘보다 높은 z-index.
+   4) 2인 책상 옵션 행(세로) 1~6 (index.html 반영)
+   5) 최소 책상 크기 보장: 작은 크기로 과도하게 축소하지 않고, 스크롤로 대응.
+*/
 
-const studentsInput = document.getElementById("studentsInput");
-const colsSel = document.getElementById("cols");
-const rowsSel = document.getElementById("rows");
-const seatTypeSel = document.getElementById("seatType");
+(() => {
+  const $ = (id) => document.getElementById(id);
 
-const autoFillBtn = document.getElementById("autoFillBtn");
-const shuffleBtn = document.getElementById("shuffleBtn");
-const clearBtn = document.getElementById("clearBtn");
-const downloadPngBtn = document.getElementById("downloadPngBtn");
-const printBtn = document.getElementById("printBtn");
+  // ===== DOM =====
+  const swStatusEl = $("swStatus");
+  const gridEl = $("grid");
+  const logEl = $("log");
+  const violationsBar = $("violationsBar");
+  const canvas = $("exportCanvas");
 
-const showSeatNo = document.getElementById("showSeatNo");
-const showEmpty = document.getElementById("showEmpty");
+  const autoFillBtn = $("autoFillBtn");
+  const clearBtn = $("clearBtn");
+  const downloadPngBtn = $("downloadPngBtn");
+  const printBtn = $("printBtn");
 
-const gridEl = document.getElementById("grid");
-const canvas = document.getElementById("exportCanvas");
+  const openLayoutBtn = $("openLayoutBtn");
+  const openStudentsBtn = $("openStudentsBtn");
+  const openOptionsBtn = $("openOptionsBtn");
+  const openSaveBtn = $("openSaveBtn");
 
-function log(msg) {
-  const t = new Date().toLocaleTimeString();
-  logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent;
-}
+  const layoutModal = $("layoutModal");
+  const studentsModal = $("studentsModal");
+  const optionsModal = $("optionsModal");
+  const applyOptionsBtn = $("applyOptionsBtn");
+  const saveModal = $("saveModal");
+
+  const studentsInput = $("studentsInput");
+  const applyStudentsBtn = $("applyStudentsBtn");
+  const studentsNormalizeBtn = $("studentsNormalizeBtn");
+  const studentsNamesOnlyBtn = $("studentsNamesOnlyBtn");
+  const forbiddenInput = $("forbiddenInput");
+  const useForbidden = $("useForbidden");
+  const includeDiagonal = $("includeDiagonal");
+
+  const showSeatNo = $("showSeatNo");
+  const showGroups = $("showGroups");
+  const showGender = $("showGender");
+
+  const rotateFront = $("rotateFront");
+  const rotateBack = $("rotateBack");
+
+  const useRotation = $("useRotation");
+  const resetHistoryBtn = $("resetHistoryBtn");
+
+  const groupMode = $("groupMode");
+  const balanceLevels = $("balanceLevels");
+
+  const toggleOrientationBtn = $("toggleOrientationBtn");
+  const stageEl = $("stage");
+  const restoreVoidsBtn = $("restoreVoidsBtn");
+
+  const modeGenderBtn = $("modeGenderBtn");
+  const modePinBtn = $("modePinBtn");
+  const modeBanner = $("modeBanner");
+
+  // ✅ 버튼 툴팁(설명 풍선)
+  if (modeGenderBtn) modeGenderBtn.dataset.tip = "성별에 따른 자리 배치";
+  if (modePinBtn) modePinBtn.dataset.tip = "지정한 학생 자리를 고정";
+
+  const hintBar = $("hintBar");
+  const hintCloseBtn = $("hintCloseBtn");
+
+  const slotSelect = $("slotSelect");
+  const newSlotBtn = $("newSlotBtn");
+  const saveBtn = $("saveBtn");
+  const loadBtn = $("loadBtn");
+  const deleteSlotBtn = $("deleteSlotBtn");
+
+  const layoutKindSel = $("layoutKind");
+  const colsSingleSel = $("colsSingle");
+  const rowsSingleSel = $("rowsSingle");
+  const pairColsSel = $("pairCols");
+  const rowsPairSel = $("rowsPair");
+  const groupSizeSel = $("groupSize");
+  const groupCountSel = $("groupCount");
+
+  const layoutPreviewEl = $("layoutPreview");
+  const applyLayoutBtn = $("applyLayoutBtn");
+
+  const accSingle = $("accSingle");
+  const accPair = $("accPair");
+  const accGroup = $("accGroup");
+
+  const seatTypeSel = $("seatType");
+  const displayPanelHost = $("displayPanelHost");
+
+  const groupMenuEl = $("groupMenu");
+
+  // ===== Utils =====
+  function nowTime() { return new Date().toLocaleTimeString(); }
+  function log(msg) {
+    if (!logEl) return;
+    logEl.textContent = `[${nowTime()}] ${msg}\n` + logEl.textContent;
+  }
+  function shuffleArr(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+  function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+  let toastEl = null;
+  function toast(msg) {
+    if (!toastEl) {
+      toastEl = document.createElement("div");
+      toastEl.className = "toast";
+      document.body.appendChild(toastEl);
+    }
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastEl._t);
+    toastEl._t = setTimeout(() => toastEl.classList.remove("show"), 1300);
+  }
+
+  const isTouchLike = () =>
+    (window.matchMedia && window.matchMedia("(hover: none)").matches) ||
+    ("ontouchstart" in window) ||
+    (navigator.maxTouchPoints || 0) > 0;
+
+  // ===== Hint bar =====
+  const HINT_HIDE_KEY = "seatplan_hint_hidden_v026";
+  function applyHintVisibility() {
+    if (!hintBar) return;
+    try {
+      const hidden = localStorage.getItem(HINT_HIDE_KEY) === "1";
+      hintBar.style.display = hidden ? "none" : "flex";
+    } catch {
+      hintBar.style.display = "flex";
+    }
+  }
+  if (hintCloseBtn) {
+    hintCloseBtn.addEventListener("click", () => {
+      if (hintBar) hintBar.style.display = "none";
+      try { localStorage.setItem(HINT_HIDE_KEY, "1"); } catch {}
+    });
+  }
+
+  // ===== State =====
+  let cols = 5;
+  let rows = 6;
+  let seats = [];
+  let history = {};
+  let violations = [];
+
+  let boardAtTop = true;
+  let uiMode = "none";       // none | gender | pin
+  let selectedSeatId = null; // 터치 환경에서 아이콘 표시용
+  let dragSrcId = null;
+
+  let layoutKind = "single";
+  let layoutParams = {
+    singleCols: 5,
+    singleRows: 6,
+    pairCols: 2,
+    pairRows: 6,
+    groupSize: 4,
+    groupCount: 3,
+  };
+
+  function getPairGapExtraScreen() {
+    try {
+      const v = getComputedStyle(document.documentElement)
+        .getPropertyValue("--pairGapExtra")
+        .trim()
+        .replace("px", "");
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 10;
+    } catch {
+      return 10;
+    }
+  }
+  const pairGapExtraExport = 18;
+
+  function seatCount() { return cols * rows; }
+  function getSeat(id) { return seats.find((s) => s.id === id) || null; }
+
+  function buildSeatModel() {
+    seats = Array.from({ length: seatCount() }, (_, id) => ({
+      id,
+      name: null,
+      locked: false,
+      void: false,
+      groupId: 1,     // ✅ 기본 1
+      // ✅ v0.40: 수동으로 선택한 모둠 번호는 자동 모둠표기(groupMode)로 덮어쓰지 않음
+      groupManual: false,
+      seatGender: "A" // A/M/F
+    }));
+  }
+
+  function mapDisplayRowToDataRow(displayRow) {
+    return boardAtTop ? displayRow : rows - 1 - displayRow;
+  }
+  function frontRowIndexData() { return boardAtTop ? 0 : rows - 1; }
+  function backRowIndexData() { return boardAtTop ? rows - 1 : 0; }
+  function frontRowIds() {
+    const r = frontRowIndexData();
+    const ids = [];
+    for (let c = 0; c < cols; c++) ids.push(r * cols + c);
+    return ids.filter((id) => !getSeat(id)?.void);
+  }
+  function backRowIds() {
+    const r = backRowIndexData();
+    const ids = [];
+    for (let c = 0; c < cols; c++) ids.push(r * cols + c);
+    return ids.filter((id) => !getSeat(id)?.void);
+  }
+
+  function updateOrientationButtonLabel() {
+    if (!toggleOrientationBtn) return;
+    toggleOrientationBtn.innerHTML = boardAtTop
+      ? "칠판을 아래로<br>(교사 시점)"
+      : "칠판을 위로<br>(학생 시점)";
+  }
+  function renderOrientation() {
+    if (!stageEl) return;
+    if (boardAtTop) stageEl.classList.remove("boardBottom");
+    else stageEl.classList.add("boardBottom");
+  }
+
+  function normGender(tok) {
+    if (!tok) return "A";
+    const t = tok.trim().toLowerCase();
+    if (t === "m" || t === "남" || t === "남자" || t === "male") return "M";
+    if (t === "f" || t === "여" || t === "여자" || t === "female") return "F";
+    return "A";
+  }
+  function normLevel(tok) {
+    if (!tok) return "중";
+    const t = tok.trim();
+    if (t === "상") return "상";
+    if (t === "하") return "하";
+    return "중";
+  }
+  // 학생 입력 편의 기능(v0.30)
+  function normalizeLines(text){
+    return (text||"")
+      .replace(/\r/g,"\n")
+      .split("\n")
+      .map((x)=>x.trim())
+      .filter(Boolean)
+      .map((x)=>x.replace(/[\t, ]+/g," ").trim())
+      .join("\n");
+  }
+  function namesToLines(text){
+    const toks = (text||"")
+      .replace(/\r/g,"\n")
+      .split(/[\n,\t ]+/)
+      .map((x)=>x.trim())
+      .filter(Boolean);
+    return toks.join("\n");
+  }
 
 function parseStudents(text) {
-  // 줄바꿈 또는 쉼표로 입력 가능
-  const raw = text
-    .replace(/\r/g, "\n")
-    .split(/[\n,]/g)
-    .map(s => s.trim())
-    .filter(Boolean);
-
-  // 중복 제거(선택): 같은 이름 여러 명 있을 수 있으면 이 부분 제거 가능
-  // 여기서는 중복을 허용하는 게 더 현실적이라 중복 제거 안 함.
-  return raw;
-}
-
-function shuffle(arr) {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+    const lines = (text || "")
+      .replace(/\r/g, "\n")
+      .split("\n")
+      .map((x) => x.trim())
+      .filter(Boolean);
+    const students = [];
+    for (const line of lines) {
+      const parts = line.split(/[,\t ]+/).filter(Boolean);
+      const name = parts[0];
+      const gender = normGender(parts[1]);
+      const level = normLevel(parts[2]);
+      students.push({ name, gender, level });
+    }
+    return students;
   }
-  return a;
-}
+  function parseForbidden(text) {
+    // 한 줄에 2명 또는 여러 명을 쉼표(,)로 연결하면 모두 인접 금지로 처리합니다.
+    // 예) A, B, C  => (A-B), (A-C), (B-C) 모두 금지
+    // 기존 호환: A-B 형식도 지원
+    const lines = (text || "")
+      .replace(/\r/g, "\n")
+      .split("\n")
+      .map((x) => x.trim())
+      .filter(Boolean);
 
-// ====== 좌석 상태 ======
-let cols = 5;
-let rows = 6;
-let seats = []; // { id, name: string|null }
+    const pairs = [];
+    for (const line of lines) {
+      const parts = line
+        .split(/[,-]/)
+        .map((x) => x.trim())
+        .filter(Boolean);
+      if (parts.length < 2) continue;
+      for (let i = 0; i < parts.length; i++) {
+        for (let j = i + 1; j < parts.length; j++) {
+          pairs.push([parts[i], parts[j]]);
+        }
+      }
+    }
+    return pairs;
+  }
 
-function seatCount() {
-  return cols * rows;
-}
 
-function buildSeatModel() {
-  seats = Array.from({ length: seatCount() }, (_, i) => ({
-    id: i,
-    name: null
-  }));
-}
+  function pairKey(a, b) {
+    return a < b ? `${a}||${b}` : `${b}||${a}`;
+  }
 
-function renderGrid() {
-  // 좌석 타입 표시만(2인 짝상은 2칸을 1칸처럼 보이게)
-  // pair 모드에서는 "각 행마다 2인 짝상 + (남는 1인)" 형태로 단순 구현
-  // (진짜 짝상 로직/레이아웃 편집기는 다음 단계에서 확장)
-  const seatType = seatTypeSel.value; // single | pair
+  function buildForbiddenSet(pairs) {
+    const set = new Set();
+    for (const [a, b] of pairs) if (a && b) set.add(pairKey(a, b));
+    return set;
+  }
 
-  // CSS grid 설정
-  const colTemplate = seatType === "pair"
-    ? `repeat(${Math.floor(cols / 2)}, 270px) ${cols % 2 === 1 ? "130px" : ""}`.trim()
-    : `repeat(${cols}, 130px)`;
+  function neighborIds(id) {
+    const r = Math.floor(id / cols);
+    const c = id % cols;
+    const ids = [];
+    const add = (rr, cc) => {
+      if (rr < 0 || cc < 0 || rr >= rows || cc >= cols) return;
+      ids.push(rr * cols + cc);
+    };
+    add(r - 1, c); add(r + 1, c); add(r, c - 1); add(r, c + 1);
+    if (includeDiagonal && includeDiagonal.checked) {
+      add(r - 1, c - 1); add(r - 1, c + 1); add(r + 1, c - 1); add(r + 1, c + 1);
+    }
+    return ids;
+  }
 
-  gridEl.style.gridTemplateColumns = colTemplate;
+  function applyAutoGroups() {
+    // layoutKind === group인 경우 이미 배치에서 groupId가 지정됨
+    // 여기서는 자동 그룹핑 옵션이 있으면 groupId를 채움.
+    if (!groupMode) return;
+    const mode = groupMode.value;
+    if (mode === "none") return;
 
-  gridEl.innerHTML = "";
+    const size = Number(mode);
+    if (!size) return;
 
-  for (let i = 0; i < seats.length; i++) {
-    const seat = seats[i];
-    const div = document.createElement("div");
+    // ✅ void 제외 + 수동 지정된 좌석은 자동 그룹핑으로 덮어쓰지 않음
+    const activeIds = seats
+      .filter((s) => !s.void && !s.groupManual)
+      .map((s) => s.id)
+      .sort((a, b) => a - b);
+    for (let i = 0; i < activeIds.length; i++) {
+      const gid = clamp(Math.floor(i / size) + 1, 1, 8);
+      const s = getSeat(activeIds[i]);
+      if (s) s.groupId = gid;
+    }
+  }
 
-    // pair 표시용: 짝상 모드에서 "짝의 왼쪽 좌석"만 렌더링하고 오른쪽은 건너뜀(시각적 간소화)
-    if (seatType === "pair") {
-      const isRight = (i % cols) % 2 === 1; // 같은 행 기준 짝의 오른쪽
-      if (isRight) continue;
-      div.className = "seat pair";
-    } else {
-      div.className = "seat";
+  function setAccordionVisibility(kind) {
+    if (accSingle) accSingle.classList.toggle("hidden", kind !== "single");
+    if (accPair) accPair.classList.toggle("hidden", kind !== "pair");
+    if (accGroup) accGroup.classList.toggle("hidden", kind !== "group");
+
+    const disableAutoGroup = kind === "group";
+    if (groupMode) groupMode.disabled = disableAutoGroup;
+    if (balanceLevels) balanceLevels.disabled = disableAutoGroup;
+  }
+
+  function computeGroupGrid(groupSize, groupCount) {
+    const blockW = groupSize === 4 ? 2 : 3;
+    const blockH = 2;
+    const maxGroupCols = blockW === 2 ? 3 : 2;
+
+    for (let gCols = Math.min(maxGroupCols, groupCount); gCols >= 1; gCols--) {
+      const gRows = Math.ceil(groupCount / gCols);
+      const totalCols = gCols * blockW + (gCols - 1);
+      const totalRows = gRows * blockH + (gRows - 1);
+      if (totalCols <= 8 && totalRows <= 8) {
+        return { ok: true, blockW, blockH, gCols, gRows, cols: totalCols, rows: totalRows };
+      }
+    }
+    return { ok: false };
+  }
+
+  function clearPreview() { if (layoutPreviewEl) layoutPreviewEl.innerHTML = ""; }
+
+  function drawMiniPreview(kind) {
+    if (!layoutPreviewEl) return;
+    clearPreview();
+
+    const wrap = document.createElement("div");
+    wrap.style.display = "grid";
+    wrap.style.gap = "3px";
+    wrap.style.padding = "8px";
+    wrap.style.border = "1px solid rgba(255,255,255,0.15)";
+    wrap.style.borderRadius = "10px";
+    wrap.style.background = "rgba(255,255,255,0.03)";
+    wrap.style.width = "fit-content";
+
+    const cell = (on, isAisle, isPairGap) => {
+      const d = document.createElement("div");
+      d.style.width = "10px";
+      d.style.height = "10px";
+      d.style.borderRadius = "3px";
+
+      if (isPairGap) {
+        d.style.width = "6px";
+        d.style.border = "0";
+        d.style.background = "transparent";
+        return d;
+      }
+
+      if (isAisle) {
+        d.style.border = "1px dashed rgba(255,255,255,0.22)";
+        d.style.background = "transparent";
+      } else {
+        d.style.border = "1px solid rgba(255,255,255,0.18)";
+        d.style.background = on ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.05)";
+      }
+      return d;
+    };
+
+    if (kind === "single") {
+      const pCols = Number(colsSingleSel.value);
+      const pRows = Number(rowsSingleSel.value);
+      wrap.style.gridTemplateColumns = `repeat(${pCols}, 10px)`;
+      for (let i = 0; i < pCols * pRows; i++) wrap.appendChild(cell(true, false, false));
+      layoutPreviewEl.appendChild(wrap);
+      return;
     }
 
-    div.dataset.seatId = String(seat.id);
-    div.draggable = true;
+    if (kind === "pair") {
+      const pc = Number(pairColsSel.value);
+      const pRows = Number(rowsPairSel.value);
 
-    if (showSeatNo.checked) {
+      const tracks = [];
+      for (let g = 0; g < pc; g++) {
+        tracks.push("10px", "10px");
+        if (g !== pc - 1) tracks.push("6px");
+      }
+      wrap.style.gridTemplateColumns = tracks.join(" ");
+
+      for (let r = 0; r < pRows; r++) {
+        for (let g = 0; g < pc; g++) {
+          wrap.appendChild(cell(true, false, false));
+          wrap.appendChild(cell(true, false, false));
+          if (g !== pc - 1) wrap.appendChild(cell(false, false, true));
+        }
+      }
+      layoutPreviewEl.appendChild(wrap);
+      return;
+    }
+
+    const size = Number(groupSizeSel.value);
+    const cnt = Number(groupCountSel.value);
+    const grid = computeGroupGrid(size, cnt);
+    if (!grid.ok) return;
+
+    const pCols = grid.cols;
+    const pRows = grid.rows;
+    wrap.style.gridTemplateColumns = `repeat(${pCols}, 10px)`;
+
+    const blockW = grid.blockW;
+    const blockH = 2;
+    const gCols = grid.gCols;
+
+    const map = Array.from({ length: pRows }, () => Array.from({ length: pCols }, () => "aisle"));
+
+    let groupIndex = 0;
+    for (let gr = 0; gr < grid.gRows; gr++) {
+      for (let gc = 0; gc < gCols; gc++) {
+        if (groupIndex >= cnt) break;
+        const startCol = gc * (blockW + 1);
+        const startRow = gr * (blockH + 1);
+
+        for (let br = 0; br < blockH; br++) {
+          for (let bc = 0; bc < blockW; bc++) {
+            if (size === 5 && br === 1 && bc === 2) continue;
+            map[startRow + br][startCol + bc] = "seat";
+          }
+        }
+        groupIndex++;
+      }
+    }
+
+    for (let r = 0; r < pRows; r++) {
+      for (let c = 0; c < pCols; c++) {
+        const t = map[r][c];
+        wrap.appendChild(cell(t === "seat", t === "aisle", false));
+      }
+    }
+    layoutPreviewEl.appendChild(wrap);
+  }
+
+  function updateLayoutPreview() {
+    if (!layoutPreviewEl || !layoutKindSel) return;
+    drawMiniPreview(layoutKindSel.value);
+  }
+
+  function syncLayoutModalUIFromState() {
+    if (!layoutKindSel) return;
+
+    layoutKindSel.value = layoutKind;
+    colsSingleSel.value = String(layoutParams.singleCols);
+    rowsSingleSel.value = String(layoutParams.singleRows);
+    pairColsSel.value = String(layoutParams.pairCols);
+    rowsPairSel.value = String(layoutParams.pairRows);
+    groupSizeSel.value = String(layoutParams.groupSize);
+    groupCountSel.value = String(layoutParams.groupCount);
+
+    setAccordionVisibility(layoutKindSel.value);
+    updateLayoutPreview();
+  }
+
+  function onLayoutKindChanged() {
+    if (!layoutKindSel) return;
+    setAccordionVisibility(layoutKindSel.value);
+    updateLayoutPreview();
+  }
+
+  function applyLayout(kind, params) {
+    layoutKind = kind;
+    uiMode = "none";
+    selectedSeatId = null;
+    violations = [];
+    closeGroupMenu();
+
+    if (violationsBar) {
+      violationsBar.style.display = "none";
+      violationsBar.textContent = "";
+    }
+
+    if (kind === "single") {
+      cols = clamp(Number(params.singleCols), 1, 8);
+      rows = clamp(Number(params.singleRows), 1, 8);
+      if (seatTypeSel) seatTypeSel.value = "single";
+      buildSeatModel();
+    }
+
+    if (kind === "pair") {
+      const pc = clamp(Number(params.pairCols), 1, 4);
+      rows = clamp(Number(params.pairRows), 1, 8);
+      cols = pc * 2;
+      if (seatTypeSel) seatTypeSel.value = "single";
+      buildSeatModel();
+    }
+
+    if (kind === "group") {
+      const size = clamp(Number(params.groupSize), 4, 6);
+      const cnt = clamp(Number(params.groupCount), 1, 6);
+
+      const grid = computeGroupGrid(size, cnt);
+      if (!grid.ok) {
+        toast("이 조합은 8×8 안에 배치하기 어려워요. 모둠 개수를 줄여보세요.");
+        return false;
+      }
+
+      cols = grid.cols;
+      rows = grid.rows;
+      if (seatTypeSel) seatTypeSel.value = "single";
+      buildSeatModel();
+
+      const blockW = grid.blockW;
+      const blockH = grid.blockH;
+      const gCols = grid.gCols;
+
+      let groupIndex = 0;
+
+      for (let gr = 0; gr < grid.gRows; gr++) {
+        for (let gc = 0; gc < gCols; gc++) {
+          if (groupIndex >= cnt) break;
+
+          const startCol = gc * (blockW + 1);
+          const startRow = gr * (blockH + 1);
+          const gid = groupIndex + 1;
+
+          for (let br = 0; br < blockH; br++) {
+            for (let bc = 0; bc < blockW; bc++) {
+              const rr = startRow + br;
+              const cc = startCol + bc;
+              const id = rr * cols + cc;
+              const seat = getSeat(id);
+              if (!seat) continue;
+
+              if (size === 5 && br === 1 && bc === 2) {
+                seat.void = true;
+                seat.groupId = 1;
+                seat.groupManual = false;
+                seat.name = null;
+                seat.locked = false;
+                seat.seatGender = "A";
+                continue;
+              }
+              seat.groupId = gid;
+              seat.groupManual = false;
+            }
+          }
+          groupIndex++;
+        }
+      }
+
+      // 통로(세로)
+      for (let gc = 1; gc < gCols; gc++) {
+        const aisleCol = gc * (blockW + 1) - 1;
+        for (let r = 0; r < rows; r++) {
+          const id = r * cols + aisleCol;
+          const s = getSeat(id);
+          if (s) {
+            s.void = true; s.groupId = 1; s.groupManual = false; s.name = null; s.locked = false; s.seatGender = "A";
+          }
+        }
+      }
+      // 통로(가로)
+      for (let gr = 1; gr < grid.gRows; gr++) {
+        const aisleRow = gr * (blockH + 1) - 1;
+        for (let c = 0; c < cols; c++) {
+          const id = aisleRow * cols + c;
+          const s = getSeat(id);
+          if (s) {
+            s.void = true; s.groupId = 1; s.groupManual = false; s.name = null; s.locked = false; s.seatGender = "A";
+          }
+        }
+      }
+
+      if (groupMode) groupMode.value = "none";
+      if (balanceLevels) balanceLevels.checked = false;
+      if (showGroups) showGroups.checked = true;
+    }
+
+    syncOptionEnables();
+    computeViolations();
+    renderGrid();
+    log(`책상 배열 적용: ${layoutKind} / ${cols}×${rows}`);
+    return true;
+  }
+
+  // ✅ 최소 책상 크기 보장: 축소 거의 하지 않고, 스크롤로 대응
+  function applySeatSizing() {
+    const seatW = 130;
+    const seatH = 70;
+    const gap = 10;
+    const font = 16;
+
+    if (gridEl) {
+      gridEl.style.setProperty("--seatW", `${seatW}px`);
+      gridEl.style.setProperty("--seatH", `${seatH}px`);
+      gridEl.style.setProperty("--gap", `${gap}px`);
+      gridEl.dataset.font = String(font);
+    }
+  }
+
+  function genderClass(seat) {
+    if (seat.void) return "";
+    if (seat.seatGender === "M") return "genderM";
+    if (seat.seatGender === "F") return "genderF";
+    return "genderA";
+  }
+
+  function renderModeUI() {
+    if (!stageEl) return;
+
+    stageEl.classList.remove("mode-gender", "mode-pin");
+    if (modeGenderBtn) modeGenderBtn.classList.remove("activeMode");
+    if (modePinBtn) modePinBtn.classList.remove("activeMode");
+
+    if (uiMode === "gender") {
+      stageEl.classList.add("mode-gender");
+      if (modeGenderBtn) modeGenderBtn.classList.add("activeMode");
+      if (modeBanner) {
+        modeBanner.textContent =
+          "성별 지정 모드: 좌석의 [무관/남/여]를 눌러 좌석 성별을 지정하세요. (다시 누르면 종료)";
+        modeBanner.style.display = "block";
+      }
+    } else if (uiMode === "pin") {
+      stageEl.classList.add("mode-pin");
+      if (modePinBtn) modePinBtn.classList.add("activeMode");
+      if (modeBanner) {
+        modeBanner.textContent =
+          "고정 좌석 모드: 좌석 왼쪽 위 📌을 눌러 학생을 고정/해제하세요.";
+        modeBanner.style.display = "block";
+      }
+    } else {
+      if (modeBanner) modeBanner.style.display = "none";
+    }
+  }
+
+  function moveDisplayPanelToToolBar() {
+    if (!displayPanelHost) return;
+    const panel = document.querySelector(".displayPanel");
+    if (panel && panel.parentElement !== displayPanelHost) {
+      displayPanelHost.appendChild(panel);
+    }
+  }
+
+  function setShowActionsOnSeat(id, on) {
+    if (!gridEl) return;
+    const seatDiv = gridEl.querySelector(`.seat[data-seat-id="${id}"]`);
+    if (!seatDiv) return;
+    seatDiv.classList.toggle("showActions", !!on);
+  }
+
+  function clearShowActionsAll() {
+    if (!gridEl) return;
+    gridEl.querySelectorAll(".seat.showActions").forEach((el) => el.classList.remove("showActions"));
+  }
+
+  function applyGridTemplateForPair(seatW, gap, extra) {
+    const pc = Math.max(1, Math.floor(cols / 2));
+    const tracks = [];
+    for (let g = 0; g < pc; g++) {
+      tracks.push(`${seatW}px`, `${seatW}px`);
+      if (g !== pc - 1) tracks.push(`${gap + extra}px`);
+    }
+    gridEl.style.gridTemplateColumns = tracks.join(" ");
+  }
+
+  function renderGrid() {
+    if (!gridEl) return;
+
+    applySeatSizing();
+    renderOrientation();
+    renderModeUI();
+    moveDisplayPanelToToolBar();
+
+    // groupMode가 켜져있으면 groupId 채움(사용자가 직접 바꾼 건 유지)
+    applyAutoGroups();
+
+    const seatW = parseInt(getComputedStyle(gridEl).getPropertyValue("--seatW")) || 130;
+    const seatH = parseInt(getComputedStyle(gridEl).getPropertyValue("--seatH")) || 70;
+    const gap = parseInt(getComputedStyle(gridEl).getPropertyValue("--gap")) || 10;
+
+    const isPair = layoutKind === "pair";
+    if (isPair) {
+      const extra = getPairGapExtraScreen();
+      applyGridTemplateForPair(seatW, gap, extra);
+    } else {
+      gridEl.style.gridTemplateColumns = `repeat(${cols}, ${seatW}px)`;
+    }
+
+    const vioSet = new Set();
+    for (const v of violations) { vioSet.add(v.aId); vioSet.add(v.bId); }
+
+    gridEl.innerHTML = "";
+
+    for (let displayR = 0; displayR < rows; displayR++) {
+      const dataRow = mapDisplayRowToDataRow(displayR);
+
+      if (!isPair) {
+        for (let c = 0; c < cols; c++) {
+          const seatId = dataRow * cols + c;
+          const seat = getSeat(seatId);
+          if (!seat) continue;
+          gridEl.appendChild(makeSeatDiv(seat, vioSet));
+        }
+        continue;
+      }
+
+      const pc = Math.max(1, Math.floor(cols / 2));
+      for (let g = 0; g < pc; g++) {
+        for (let k = 0; k < 2; k++) {
+          const c = g * 2 + k;
+          const seatId = dataRow * cols + c;
+          const seat = getSeat(seatId);
+          if (!seat) continue;
+          gridEl.appendChild(makeSeatDiv(seat, vioSet));
+        }
+        if (g !== pc - 1) {
+          const gapDiv = document.createElement("div");
+          gapDiv.className = "gridGap";
+          gapDiv.style.height = `${seatH}px`;
+          gridEl.appendChild(gapDiv);
+        }
+      }
+    }
+
+    // 터치: selectedSeatId만 showActions
+    if (isTouchLike()) {
+      clearShowActionsAll();
+      if (selectedSeatId != null) setShowActionsOnSeat(selectedSeatId, true);
+    }
+
+    // 모둠 메뉴가 열린 상태면 위치 재계산(스크롤/리렌더 대응)
+    if (groupMenuState.open) {
+      const seatId = groupMenuState.seatId;
+      const tag = gridEl.querySelector(`.seat[data-seat-id="${seatId}"] .groupTag`);
+      if (tag) positionGroupMenu(tag);
+      else closeGroupMenu();
+    }
+  }
+
+  // ===== Seat rendering =====
+  function makeGroupTag(seat) {
+    const wrap = document.createElement("div");
+    wrap.className = "groupTag";
+    const gid = clamp(Number(seat.groupId ?? 1), 1, 8);
+    wrap.dataset.group = String(gid);
+    wrap.dataset.action = "groupMenu";
+    wrap.dataset.seatId = String(seat.id);
+    wrap.title = "모둠 번호 선택";
+
+    const label = document.createElement("span");
+    label.className = "groupLabel";
+    label.textContent = `모둠 ${gid}`;
+    const caret = document.createElement("span");
+    caret.className = "groupCaret";
+    caret.textContent = "▾";
+
+    wrap.appendChild(label);
+    wrap.appendChild(caret);
+    return wrap;
+  }
+
+  function makeSeatDiv(seat, vioSet) {
+    const div = document.createElement("div");
+    div.className = "seat";
+    div.dataset.seatId = String(seat.id);
+
+    if (seat.locked) div.classList.add("locked");
+    if (seat.void) div.classList.add("void");
+    if (vioSet.has(seat.id)) div.classList.add("violation");
+    div.classList.add(...genderClass(seat).split(" ").filter(Boolean));
+
+    div.draggable = uiMode === "none";
+
+    if (showSeatNo && showSeatNo.checked) {
       const no = document.createElement("div");
       no.className = "no";
       no.textContent = String(seat.id + 1);
       div.appendChild(no);
     }
 
+    // ✅ 좌상단 핀(고정)
+    const pin = document.createElement("div");
+    pin.className = "pinBadge";
+    pin.dataset.action = "pinToggle";
+    pin.title = "고정 좌석(학생 고정)";
+    pin.textContent = "📌";
+    div.appendChild(pin);
+
+    // ✅ 우상단 삭제/복구
+    const action = document.createElement("div");
+    action.className = "actionBadge";
+    action.dataset.action = seat.void ? "restore" : "delete";
+    action.textContent = seat.void ? "↩" : "🗑";
+    action.title = seat.void ? "통로(삭제) 자리 복구" : "좌석 삭제(통로 만들기)";
+    div.appendChild(action);
+
+    // ✅ 모둠 태그: showGroups 체크면 항상 표시(통로 제외)
+    if (showGroups && showGroups.checked && !seat.void) {
+      div.appendChild(makeGroupTag(seat));
+    }
+
+    if (showGender && showGender.checked && !seat.void) {
+      const g = document.createElement("div");
+      g.className = "genderTag";
+      g.textContent = seat.seatGender === "A" ? "무관" : seat.seatGender === "M" ? "남" : "여";
+      div.appendChild(g);
+    }
+
     const name = document.createElement("div");
     name.className = "name";
+    const baseFont = Number(gridEl.dataset.font || 16);
 
-    if (seat.name) {
+    if (seat.void) {
+      name.textContent = "통로";
+      name.style.fontSize = `${Math.max(11, baseFont)}px`;
+    } else if (seat.name) {
       name.textContent = seat.name;
+      const len = seat.name.length;
+      let f = baseFont;
+      if (len >= 6) f = baseFont - 1;
+      if (len >= 9) f = baseFont - 2;
+      if (len >= 12) f = baseFont - 3;
+      name.style.fontSize = `${Math.max(11, f)}px`;
     } else {
-      if (showEmpty.checked) {
-        name.textContent = "빈자리";
-        name.classList.add("empty");
-      } else {
-        name.textContent = "";
-      }
+      name.textContent = "빈자리";
+      name.classList.add("empty");
+      name.style.fontSize = `${Math.max(11, baseFont)}px`;
     }
-
     div.appendChild(name);
 
-    // Drag & Drop
-    div.addEventListener("dragstart", onDragStart);
-    div.addEventListener("dragend", onDragEnd);
-    div.addEventListener("dragover", onDragOver);
-    div.addEventListener("dragleave", onDragLeave);
-    div.addEventListener("drop", onDrop);
+    // 성별 지정 overlay
+    div.appendChild(makeGenderOverlay(seat));
 
-    gridEl.appendChild(div);
-  }
-}
-
-// ====== 드래그 앤 드롭 ======
-let draggingSeatId = null;
-
-function getSeatById(id) {
-  return seats.find(s => s.id === id) || null;
-}
-
-function onDragStart(e) {
-  const seatId = Number(e.currentTarget.dataset.seatId);
-  draggingSeatId = seatId;
-
-  e.dataTransfer.effectAllowed = "move";
-  e.dataTransfer.setData("text/plain", String(seatId));
-  e.currentTarget.classList.add("dragging");
-}
-
-function onDragEnd(e) {
-  e.currentTarget.classList.remove("dragging");
-  draggingSeatId = null;
-
-  // 모든 표시 제거
-  document.querySelectorAll(".seat.dropOk,.seat.dropBad")
-    .forEach(el => el.classList.remove("dropOk", "dropBad"));
-}
-
-function onDragOver(e) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = "move";
-  e.currentTarget.classList.add("dropOk");
-}
-
-function onDragLeave(e) {
-  e.currentTarget.classList.remove("dropOk", "dropBad");
-}
-
-function onDrop(e) {
-  e.preventDefault();
-  const fromId = Number(e.dataTransfer.getData("text/plain"));
-  const toId = Number(e.currentTarget.dataset.seatId);
-
-  if (Number.isNaN(fromId) || Number.isNaN(toId)) return;
-  if (fromId === toId) return;
-
-  const a = getSeatById(fromId);
-  const b = getSeatById(toId);
-  if (!a || !b) return;
-
-  // 자리 교체(이름 swap)
-  [a.name, b.name] = [b.name, a.name];
-
-  renderGrid();
-  log(`자리 교체: ${a.name ?? "빈자리"} ↔ ${b.name ?? "빈자리"}`);
-}
-
-// ====== 버튼 동작 ======
-function applyGridSizeFromUI() {
-  cols = Number(colsSel.value);
-  rows = Number(rowsSel.value);
-  buildSeatModel();
-  renderGrid();
-  log(`격자 크기: ${cols}×${rows} (총 ${seatCount()}자리)`);
-}
-
-function autoFill() {
-  const list = parseStudents(studentsInput.value);
-  if (list.length === 0) {
-    log("학생 명단이 비어 있어요. 먼저 입력해줘.");
-    return;
+    return div;
   }
 
-  // 좌석 초기화
-  seats.forEach(s => (s.name = null));
+  function makeGenderOverlay(seat) {
+    const ov = document.createElement("div");
+    ov.className = "overlayIcon gender";
 
-  // 앞에서부터 채우기(기본)
-  const max = Math.min(list.length, seats.length);
-  for (let i = 0; i < max; i++) {
-    seats[i].name = list[i];
+    const pad = document.createElement("div");
+    pad.className = "genderPad";
+
+    const makeBtn = (label, code, cls) => {
+      const b = document.createElement("div");
+      b.className = `gbtn ${cls}` + (seat.seatGender === code ? " active" : "");
+      b.textContent = label;
+      b.dataset.action = "genderSet";
+      b.dataset.gender = code;
+      return b;
+    };
+
+    pad.appendChild(makeBtn("무관", "A", "any"));
+    pad.appendChild(makeBtn("남", "M", "male"));
+    pad.appendChild(makeBtn("여", "F", "female"));
+
+    ov.appendChild(pad);
+    return ov;
   }
 
-  renderGrid();
-  log(`자동 배치 완료: ${max}명 배치 / ${seats.length}자리`);
-}
+  // ===== Violations =====
+  function computeViolations() {
+    violations = [];
 
-function doShuffle() {
-  const currentNames = seats.map(s => s.name).filter(Boolean);
-  if (currentNames.length === 0) {
-    // 입력 기반 셔플도 지원
-    const list = parseStudents(studentsInput.value);
-    if (list.length === 0) {
-      log("셔플할 학생이 없어요. 먼저 입력하거나 자동 배치를 해줘.");
+    if (useForbidden && !useForbidden.checked) {
+      if (violationsBar) { violationsBar.style.display = "none"; violationsBar.textContent = ""; }
       return;
     }
-    const shuffled = shuffle(list);
-    seats.forEach(s => (s.name = null));
-    const max = Math.min(shuffled.length, seats.length);
-    for (let i = 0; i < max; i++) seats[i].name = shuffled[i];
+
+    const pairs = parseForbidden(forbiddenInput ? forbiddenInput.value : "");
+    const forbid = buildForbiddenSet(pairs);
+
+
+    if (forbid.size === 0) {
+      if (violationsBar) { violationsBar.style.display = "none"; violationsBar.textContent = ""; }
+      return;
+    }
+
+    const nameToSeat = new Map();
+    for (const s of seats) {
+      if (s.void) continue;
+      if (s.name) nameToSeat.set(s.name, s.id);
+    }
+
+    for (const [aName, bName] of pairs) {
+      const aId = nameToSeat.get(aName);
+      const bId = nameToSeat.get(bName);
+      if (aId == null || bId == null) continue;
+
+      const neigh = new Set(neighborIds(aId));
+      if (neigh.has(bId)) {
+        violations.push({ aName, bName, aId, bId });
+      }
+    }
+
+    if (!violationsBar) return;
+    if (violations.length === 0) {
+      violationsBar.style.display = "none";
+      violationsBar.textContent = "";
+    } else {
+      const lines = violations.map(
+        (v) => `- ${v.aName}(좌석 ${v.aId + 1}) ↔ ${v.bName}(좌석 ${v.bId + 1})`
+      );
+      violationsBar.textContent = `금지쌍 위반 ${violations.length}건:\n` + lines.join("\n");
+      violationsBar.style.display = "block";
+    }
+  }
+
+  function ensureHistoryFor(name) { if (!history[name]) history[name] = { front: 0, back: 0 }; }
+  function updateRotationCounts() {
+    if (useRotation && !useRotation.checked) return;
+
+    const f = frontRowIds();
+    const b = backRowIds();
+
+    if (rotateFront && rotateFront.checked) {
+      for (const id of f) {
+        const s = getSeat(id);
+        if (!s || s.void || !s.name) continue;
+        ensureHistoryFor(s.name);
+        history[s.name].front += 1;
+      }
+    }
+
+    if (rotateBack && rotateBack.checked) {
+      for (const id of b) {
+        const s = getSeat(id);
+        if (!s || s.void || !s.name) continue;
+        ensureHistoryFor(s.name);
+        history[s.name].back += 1;
+      }
+    }
+    log("로테이션 기록 업데이트 완료(앞/뒤줄 누적).");
+  }
+
+  function syncOptionEnables(){
+    const forbidOn = (!useForbidden) || useForbidden.checked;
+    if (forbiddenInput) forbiddenInput.disabled = !forbidOn;
+    if (includeDiagonal) includeDiagonal.disabled = !forbidOn;
+
+    const rotOn = (!useRotation) || useRotation.checked;
+    if (rotateFront) rotateFront.disabled = !rotOn;
+    if (rotateBack) rotateBack.disabled = !rotOn;
+  }
+
+  function ensureShowGroupsForBalance(){
+    if (!balanceLevels || !showGroups) return;
+    if (balanceLevels.checked && !showGroups.checked) {
+      showGroups.checked = true;
+    }
+  }
+
+
+  // ===== Actions =====
+  function togglePin(seat) {
+    if (!seat || seat.void) return;
+
+    // 해제는 언제든 가능
+    if (seat.locked) {
+      seat.locked = false;
+      renderGrid();
+      log(`좌석 고정 해제: 좌석 ${seat.id + 1}`);
+      return;
+    }
+
+    // 고정은 학생이 있는 자리만
+    if (!seat.name) {
+      toast("학생이 지정된 자리만 고정할 수 있어요.");
+      return;
+    }
+    seat.locked = true;
     renderGrid();
-    log("입력 명단을 셔플해서 배치했어.");
-    return;
+    log(`좌석 고정: ${seat.name} (좌석 ${seat.id + 1})`);
   }
 
-  const shuffled = shuffle(currentNames);
-  seats.forEach(s => (s.name = null));
-  for (let i = 0; i < shuffled.length; i++) seats[i].name = shuffled[i];
-  renderGrid();
-  log("현재 배치를 셔플했어.");
-}
+  function clearAll() {
+    uiMode = "none";
+    selectedSeatId = null;
+    closeGroupMenu();
 
-function clearAll() {
-  seats.forEach(s => (s.name = null));
-  renderGrid();
-  log("모든 좌석을 비웠어.");
-}
+    if (layoutKind === "group") {
+      applyLayout("group", layoutParams);
+      log("초기화 완료(모둠대형 패턴 재적용)");
+      return;
+    }
 
-function downloadPng() {
-  // 배치도를 캔버스로 그려서 PNG 저장(출력 품질 안정)
-  const seatType = seatTypeSel.value;
-  const showNo = showSeatNo.checked;
-  const showEmptyLabel = showEmpty.checked;
+    for (const s of seats) {
+      s.name = null;
+      s.locked = false;
+      s.void = false;
+      s.groupId = 1;
+      s.groupManual = false;
+      s.seatGender = "A";
+    }
 
-  // 캔버스 크기(인쇄용 고해상도)
-  const W = 2200;
-  const H = 1400;
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext("2d");
+    violations = [];
+    if (violationsBar) { violationsBar.style.display = "none"; violationsBar.textContent = ""; }
 
-  // 배경
-  ctx.fillStyle = "#0b1220";
-  ctx.fillRect(0, 0, W, H);
+    renderGrid();
+    log("초기화 완료");
+  }
 
-  // 타이틀
-  const title = "자리배치";
-  const date = new Date().toLocaleDateString();
-  ctx.fillStyle = "#e5e7eb";
-  ctx.font = "700 44px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-  ctx.fillText(title, 70, 90);
-  ctx.fillStyle = "#9ca3af";
-  ctx.font = "500 22px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-  ctx.fillText(date, 70, 125);
+  function restoreVoids() {
+    uiMode = "none";
+    selectedSeatId = null;
+    closeGroupMenu();
 
-  // 칠판
-  ctx.fillStyle = "rgba(34,197,94,0.10)";
-  ctx.strokeStyle = "rgba(34,197,94,0.45)";
-  roundRect(ctx, 70, 155, W - 140, 70, 18);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = "#bbf7d0";
-  ctx.font = "700 26px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-  ctx.fillText("칠판", W / 2 - 25, 203);
+    let cnt = 0;
+    for (const s of seats) {
+      if (s.void) {
+        s.void = false;
+        s.name = null;
+        s.locked = false;
+        s.groupId = 1;
+        s.groupManual = false;
+        s.seatGender = "A";
+        cnt++;
+      }
+    }
 
-  // 그리드 영역 계산
-  const top = 260;
-  const left = 120;
-  const gap = 18;
+    syncOptionEnables();
+    computeViolations();
+    renderGrid();
+    log(`통로(빈칸) 복구: ${cnt}칸`);
+  }
 
-  const seatW_single = 220;
-  const seatH = 110;
+  function copySeatState(s) {
+    return { name: s.name, locked: s.locked, void: s.void, groupId: s.groupId, seatGender: s.seatGender };
+  }
+  function applySeatState(s, st) {
+    s.name = st.name ?? null;
+    s.locked = !!st.locked;
+    s.void = !!st.void;
+    s.groupId = clamp(Number(st.groupId ?? 1), 1, 8);
+    s.seatGender = st.seatGender ?? "A";
+  }
+  function swapSeatState(aId, bId) {
+    const a = getSeat(aId);
+    const b = getSeat(bId);
+    if (!a || !b) return false;
+    const aSt = copySeatState(a);
+    const bSt = copySeatState(b);
+    applySeatState(a, bSt);
+    applySeatState(b, aSt);
+    return true;
+  }
 
-  // pair는 2자리 묶음 표시만 단순 적용(폭만 넓게)
-  const seatW = (seatType === "pair") ? 460 : seatW_single;
+  // ===== Drag & Drop (move/swap) =====
+  if (gridEl) {
+    gridEl.addEventListener("dragstart", (e) => {
+      if (uiMode !== "none") return;
+      const seatDiv = e.target.closest(".seat");
+      if (!seatDiv) return;
+      const id = Number(seatDiv.dataset.seatId);
+      if (Number.isNaN(id)) return;
 
-  // 그려질 열 수
-  const drawCols = (seatType === "pair") ? Math.ceil(cols / 2) : cols;
+      const seat = getSeat(id);
+      if (seat && seat.void) return; // 통로는 드래그 이동 의미 없음
 
-  // 전체 너비/높이
-  const gridW = drawCols * seatW + (drawCols - 1) * gap;
-  const gridH = rows * seatH + (rows - 1) * gap;
+      dragSrcId = id;
+      if (e.dataTransfer) {
+        e.dataTransfer.setData("text/plain", String(id));
+        e.dataTransfer.effectAllowed = "move";
+      }
+    });
 
-  // 가운데 정렬
-  const startX = (W - gridW) / 2;
-  const startY = top;
+    gridEl.addEventListener("dragover", (e) => {
+      if (uiMode !== "none") return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    });
 
-  // 좌석 렌더링
-  let drawIndex = 0;
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < drawCols; c++) {
-      const x = startX + c * (seatW + gap);
-      const y = startY + r * (seatH + gap);
+    gridEl.addEventListener("drop", (e) => {
+      if (uiMode !== "none") return;
+      e.preventDefault();
 
-      // seatId 매핑: pair 모드면 한 칸이 실제 좌석 2개(왼쪽 id)로 대표
-      // single 모드면 그대로
-      const seatId = seatType === "pair"
-        ? (r * cols + c * 2)  // 왼쪽 좌석 id
-        : (r * cols + c);
+      const seatDiv = e.target.closest(".seat");
+      if (!seatDiv) return;
 
-      const seat = getSeatById(seatId);
+      const dstId = Number(seatDiv.dataset.seatId);
 
-      // 좌석 배경
-      ctx.fillStyle = "rgba(255,255,255,0.06)";
-      ctx.strokeStyle = "rgba(255,255,255,0.12)";
-      roundRect(ctx, x, y, seatW, seatH, 18);
-      ctx.fill();
-      ctx.stroke();
+      let srcId = NaN;
+      if (e.dataTransfer) srcId = Number(e.dataTransfer.getData("text/plain"));
+      if (Number.isNaN(srcId)) srcId = dragSrcId;
+      dragSrcId = null;
 
-      // 좌석번호
-      if (showNo) {
-        ctx.fillStyle = "rgba(156,163,175,0.95)";
-        ctx.font = "600 18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-        ctx.fillText(String(seatId + 1), x + 14, y + 28);
+      if (Number.isNaN(srcId) || Number.isNaN(dstId) || srcId === dstId) return;
+
+      if (!swapSeatState(srcId, dstId)) return;
+
+      selectedSeatId = null;
+      computeViolations();
+      renderGrid();
+      log(`이동/교체: 좌석 ${srcId + 1} ↔ 좌석 ${dstId + 1}`);
+    });
+
+    // 클릭 처리(모드/아이콘/모둠 메뉴)
+    gridEl.addEventListener("click", (e) => {
+      const seatDiv = e.target.closest(".seat");
+      if (!seatDiv) return;
+
+      const id = Number(seatDiv.dataset.seatId);
+      const seat = getSeat(id);
+      if (!seat) return;
+
+      const actionEl = e.target.closest("[data-action]");
+      if (actionEl) {
+        const act = actionEl.dataset.action;
+
+        // 성별 지정 모드 버튼
+        if (act === "genderSet") {
+          if (uiMode !== "gender") return;
+          seat.seatGender = actionEl.dataset.gender || "A";
+          computeViolations();
+          renderGrid();
+          log(`성별 지정: 좌석 ${id + 1}`);
+          return;
+        }
+
+        // 고정핀 (모드 상관없이: 고정된 핀은 항상 클릭으로 해제 가능)
+        if (act === "pinToggle") {
+          togglePin(seat);
+          return;
+        }
+
+        // 삭제/복구
+        if (act === "delete") {
+          if (seat.locked) { toast("고정된 좌석은 삭제할 수 없어요. 먼저 고정을 해제하세요."); return; }
+          seat.name = null;
+          seat.void = true;
+          seat.locked = false;
+          seat.groupId = 1;
+          seat.groupManual = false;
+          seat.seatGender = "A";
+          selectedSeatId = null;
+          closeGroupMenu();
+          computeViolations();
+          renderGrid();
+          log(`좌석 삭제(통로): 좌석 ${id + 1}`);
+          return;
+        }
+        if (act === "restore") {
+          seat.void = false;
+          seat.name = null;
+          seat.locked = false;
+          seat.groupId = 1;
+          seat.groupManual = false;
+          seat.seatGender = "A";
+          selectedSeatId = null;
+          closeGroupMenu();
+          computeViolations();
+          renderGrid();
+          log(`좌석 복구: 좌석 ${id + 1}`);
+          return;
+        }
+
+        // 모둠 메뉴 열기
+        if (act === "groupMenu") {
+          if (!(showGroups && showGroups.checked)) return;
+          openGroupMenuForSeat(id, actionEl);
+          return;
+        }
       }
 
-      // 이름
-      const name = seat?.name;
-      if (name) {
-        ctx.fillStyle = "#e5e7eb";
-        ctx.font = "800 34px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-        drawCenteredText(ctx, name, x + seatW / 2, y + 70, seatW - 30);
-      } else if (showEmptyLabel) {
-        ctx.fillStyle = "rgba(156,163,175,0.75)";
-        ctx.font = "700 22px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-        ctx.fillText("빈자리", x + seatW / 2 - 30, y + 72);
+      // 모드가 켜져 있으면(성별/핀) 일반 클릭 선택은 안 함
+      if (uiMode !== "none") return;
+
+      // 터치 환경: 탭하면 아이콘 표시 토글
+      if (isTouchLike()) {
+        if (selectedSeatId === id) selectedSeatId = null;
+        else selectedSeatId = id;
+        renderGrid();
+        return;
       }
 
-      drawIndex++;
-      if (startY + gridH > H - 80) break;
+      // 데스크탑: 기본은 아무 동작 없음 (hover로 삭제 노출)
+    });
+  }
+
+  // 그리드 밖 클릭: 터치 선택 해제 + 모둠 메뉴 닫기
+  document.addEventListener("click", (e) => {
+    const insideGrid = e.target.closest("#grid");
+    const insideMenu = e.target.closest("#groupMenu");
+    if (!insideGrid && !insideMenu) {
+      if (isTouchLike() && selectedSeatId != null) {
+        selectedSeatId = null;
+        renderGrid();
+      }
+      closeGroupMenu();
+    }
+  });
+
+  // ===== Group Menu (fixed, not clipped) =====
+  const groupMenuState = { open: false, seatId: null };
+
+  function buildGroupMenuItems(currentGid) {
+    if (!groupMenuEl) return;
+    groupMenuEl.innerHTML = "";
+    for (let i = 1; i <= 8; i++) {
+      const item = document.createElement("div");
+      item.className = "gmItem" + (i === currentGid ? " active" : "");
+      item.dataset.group = String(i);
+      item.setAttribute("role", "option");
+      item.dataset.action = "pickGroup";
+
+      const left = document.createElement("div");
+      left.style.display = "flex";
+      left.style.alignItems = "center";
+      left.style.gap = "10px";
+
+      const sw = document.createElement("span");
+      sw.className = "gmSwatch";
+      const txt = document.createElement("span");
+      txt.textContent = `모둠 ${i}`;
+
+      left.appendChild(sw);
+      left.appendChild(txt);
+      item.appendChild(left);
+
+      item.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const seat = getSeat(groupMenuState.seatId);
+        if (!seat) return;
+        seat.groupId = i;
+        seat.groupManual = true;
+        closeGroupMenu();
+        renderGrid();
+        log(`모둠 변경: 좌석 ${seat.id + 1} → 모둠 ${i}`);
+      });
+
+      groupMenuEl.appendChild(item);
     }
   }
 
-  // 저장
-  const dataUrl = canvas.toDataURL("image/png");
-  const a = document.createElement("a");
-  a.href = dataUrl;
-  a.download = `seatplan_${new Date().toISOString().slice(0,10)}.png`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  function positionGroupMenu(anchorEl) {
+    if (!groupMenuEl) return;
+    const rect = anchorEl.getBoundingClientRect();
+    const menuRect = groupMenuEl.getBoundingClientRect();
 
-  log("PNG 저장 완료!");
-}
+    const margin = 8;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
 
-function printPlan() {
-  // 간단 인쇄: 새 창에 이미지 띄워 프린트
-  const seatType = seatTypeSel.value;
-  const showNo = showSeatNo.checked;
-  const showEmptyLabel = showEmpty.checked;
+    // 기본: 아래로
+    let left = rect.left;
+    let top = rect.bottom + margin;
 
-  // PNG를 먼저 만들고 그 이미지를 인쇄
-  const W = 2000;
-  const H = 1300;
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, W, H);
+    // 오른쪽 넘침 방지
+    if (left + menuRect.width > vw - margin) {
+      left = vw - margin - menuRect.width;
+    }
+    if (left < margin) left = margin;
 
-  // 상단 제목
-  ctx.fillStyle = "#111827";
-  ctx.font = "800 40px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-  ctx.fillText("자리배치", 70, 80);
-  ctx.fillStyle = "#6b7280";
-  ctx.font = "500 20px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-  ctx.fillText(new Date().toLocaleDateString(), 70, 112);
+    // 아래 공간 부족하면 위로
+    if (top + menuRect.height > vh - margin) {
+      top = rect.top - margin - menuRect.height;
+    }
+    if (top < margin) top = margin;
 
-  // 칠판
-  ctx.fillStyle = "rgba(34,197,94,0.10)";
-  ctx.strokeStyle = "rgba(34,197,94,0.35)";
-  roundRect(ctx, 70, 140, W - 140, 60, 16);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = "#166534";
-  ctx.font = "800 22px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-  ctx.fillText("칠판", W / 2 - 20, 178);
+    groupMenuEl.style.left = `${Math.round(left)}px`;
+    groupMenuEl.style.top = `${Math.round(top)}px`;
+  }
 
-  // grid
-  const top = 230;
-  const gap = 16;
-  const seatW_single = 210;
-  const seatH = 100;
-  const seatW = (seatType === "pair") ? 440 : seatW_single;
-  const drawCols = (seatType === "pair") ? Math.ceil(cols / 2) : cols;
+  function openGroupMenuForSeat(seatId, anchorEl) {
+    if (!groupMenuEl) return;
+    const seat = getSeat(seatId);
+    if (!seat || seat.void) return;
 
-  const gridW = drawCols * seatW + (drawCols - 1) * gap;
-  const startX = (W - gridW) / 2;
-  const startY = top;
+    const gid = clamp(Number(seat.groupId ?? 1), 1, 8);
+    groupMenuState.open = true;
+    groupMenuState.seatId = seatId;
 
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < drawCols; c++) {
-      const x = startX + c * (seatW + gap);
-      const y = startY + r * (seatH + gap);
-      const seatId = seatType === "pair" ? (r * cols + c * 2) : (r * cols + c);
-      const seat = getSeatById(seatId);
+    buildGroupMenuItems(gid);
+    groupMenuEl.classList.remove("hidden");
+    groupMenuEl.style.display = "block";
+    positionGroupMenu(anchorEl);
+  }
 
-      ctx.fillStyle = "#f3f4f6";
-      ctx.strokeStyle = "#d1d5db";
-      roundRect(ctx, x, y, seatW, seatH, 14);
-      ctx.fill();
-      ctx.stroke();
+  function closeGroupMenu() {
+    if (!groupMenuEl) return;
+    groupMenuState.open = false;
+    groupMenuState.seatId = null;
+    groupMenuEl.classList.add("hidden");
+    groupMenuEl.style.display = "none";
+  }
 
-      if (showNo) {
-        ctx.fillStyle = "#6b7280";
-        ctx.font = "600 16px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-        ctx.fillText(String(seatId + 1), x + 12, y + 24);
+  // 스크롤/리사이즈 시 메뉴 위치 유지
+  window.addEventListener("resize", () => {
+    if (!groupMenuState.open) return;
+    const seatId = groupMenuState.seatId;
+    const tag = gridEl?.querySelector(`.seat[data-seat-id="${seatId}"] .groupTag`);
+    if (tag) positionGroupMenu(tag);
+  });
+  stageEl?.addEventListener("scroll", () => {
+    if (!groupMenuState.open) return;
+    const seatId = groupMenuState.seatId;
+    const tag = gridEl?.querySelector(`.seat[data-seat-id="${seatId}"] .groupTag`);
+    if (tag) positionGroupMenu(tag);
+  }, { passive: true });
+
+  // ===== Modes =====
+  function toggleMode(next) {
+    selectedSeatId = null;
+    closeGroupMenu();
+    uiMode = uiMode === next ? "none" : next;
+    renderGrid();
+  }
+  if (modeGenderBtn) modeGenderBtn.addEventListener("click", () => toggleMode("gender"));
+  if (modePinBtn) modePinBtn.addEventListener("click", () => toggleMode("pin"));
+
+  // ===== Auto fill =====
+  function autoFill() {
+    uiMode = "none";
+    selectedSeatId = null;
+
+    const students = parseStudents(studentsInput ? studentsInput.value : "");
+    if (students.length === 0) {
+      toast("학생 명단이 비어 있어요.");
+      return;
+    }
+
+    students.forEach((s) => ensureHistoryFor(s.name));
+
+    const nameToGender = new Map(students.map((s) => [s.name, s.gender]));
+
+    // 고정된 학생(이름)은 항상 유지
+    const lockedNames = new Set();
+    for (const s of seats) {
+      if (s.void) continue;
+      if (s.locked && s.name) lockedNames.add(s.name);
+    }
+
+    const activeSeatIds = seats.filter((s) => !s.void).map((s) => s.id);
+    const freeSeatIds = activeSeatIds.filter((id) => !getSeat(id)?.locked);
+
+    // 남은 학생 풀(자리 수만큼만)
+    let pool = students.map((s) => s.name).filter((n) => !lockedNames.has(n));
+    pool = pool.slice(0, freeSeatIds.length);
+
+    // 인접 금지(한 줄에 여러 명이면 모든 조합 금지)
+    const forbiddenPairs = (useForbidden && !useForbidden.checked) ? [] : parseForbidden(forbiddenInput ? forbiddenInput.value : "");
+
+    const allowedForSeat = (name, seatId) => {
+      const seat = getSeat(seatId);
+      if (!seat || seat.void) return false;
+      const req = seat.seatGender ?? "A";
+      if (req === "A") return true;
+      const g = nameToGender.get(name) || "A";
+      return g === req || g === "A";
+    };
+
+    // --- (금지쌍 만족) 탐색 유틸 ---
+    const neighborSet = new Map();
+    if (forbiddenPairs.length > 0) {
+      for (const id of activeSeatIds) neighborSet.set(id, new Set(neighborIds(id)));
+    }
+
+    const forbiddenCost = (seatToName) => {
+      if (forbiddenPairs.length === 0) return 0;
+      const nameToSeat = new Map();
+      for (const id of activeSeatIds) {
+        const nm = seatToName[id];
+        if (nm) nameToSeat.set(nm, id);
+      }
+      let cost = 0;
+      for (const [a, b] of forbiddenPairs) {
+        const aId = nameToSeat.get(a);
+        const bId = nameToSeat.get(b);
+        if (aId == null || bId == null) continue;
+        const ns = neighborSet.get(aId);
+        if (ns && ns.has(bId)) cost += 1;
+      }
+      return cost;
+    };
+
+    const makeInitialAssignment = () => {
+      const seatToName = Array.from({ length: seatCount() }, () => null);
+
+      // locked seed
+      for (const s of seats) {
+        if (s.void) continue;
+        if (s.locked && s.name) seatToName[s.id] = s.name;
       }
 
-      const name = seat?.name;
-      if (name) {
-        ctx.fillStyle = "#111827";
-        ctx.font = "800 30px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-        drawCenteredText(ctx, name, x + seatW / 2, y + 62, seatW - 24);
-      } else if (showEmptyLabel) {
-        ctx.fillStyle = "#9ca3af";
-        ctx.font = "700 18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-        ctx.fillText("빈자리", x + seatW / 2 - 26, y + 64);
+      let remaining = shuffleArr(pool);
+
+      // seat order shuffle helps
+      const seatOrder = shuffleArr(freeSeatIds);
+      for (const id of seatOrder) {
+        if (remaining.length === 0) {
+          seatToName[id] = null;
+          continue;
+        }
+
+        const req = getSeat(id)?.seatGender ?? "A";
+        let pickIndex = 0;
+
+        if (req !== "A") {
+          pickIndex = -1;
+          for (let k = 0; k < remaining.length; k++) {
+            if (allowedForSeat(remaining[k], id)) {
+              pickIndex = k;
+              break;
+            }
+          }
+          if (pickIndex === -1) pickIndex = 0;
+        }
+
+        const picked = remaining.splice(pickIndex, 1)[0];
+        seatToName[id] = picked ?? null;
       }
+
+      return seatToName;
+    };
+
+    const improveBySwaps = (seed) => {
+      // 랜덤 스왑 힐클라임(빠르고 안정적)
+      let cur = seed.slice();
+      let curCost = forbiddenCost(cur);
+      let best = cur.slice();
+      let bestCost = curCost;
+
+      const steps = forbiddenPairs.length > 0 ? 900 : 0;
+      for (let step = 0; step < steps; step++) {
+        if (curCost === 0) break;
+
+        const a = freeSeatIds[Math.floor(Math.random() * freeSeatIds.length)];
+        const b = freeSeatIds[Math.floor(Math.random() * freeSeatIds.length)];
+        if (a === b) continue;
+
+        // swap
+        const tmp = cur[a];
+        cur[a] = cur[b];
+        cur[b] = tmp;
+
+        const newCost = forbiddenCost(cur);
+        const accept = newCost <= curCost || Math.random() < 0.02;
+
+        if (accept) {
+          curCost = newCost;
+          if (newCost < bestCost) {
+            bestCost = newCost;
+            best = cur.slice();
+            if (bestCost === 0) break;
+          }
+        } else {
+          // revert
+          const tmp2 = cur[a];
+          cur[a] = cur[b];
+          cur[b] = tmp2;
+        }
+      }
+
+      return { best, bestCost };
+    };
+
+    // --- 메인 탐색 ---
+    let bestGlobal = null;
+    let bestGlobalCost = Infinity;
+
+    const attempts = forbiddenPairs.length > 0 ? 50 : 1;
+    for (let t = 0; t < attempts; t++) {
+      const seed = makeInitialAssignment();
+      const { best, bestCost } = improveBySwaps(seed);
+      if (bestCost < bestGlobalCost) {
+        bestGlobalCost = bestCost;
+        bestGlobal = best;
+        if (bestGlobalCost === 0) break;
+      }
+    }
+
+    // 적용
+    if (!bestGlobal) bestGlobal = makeInitialAssignment();
+
+    for (const id of freeSeatIds) {
+      const seat = getSeat(id);
+      if (!seat || seat.void) continue;
+      // 고정 좌석은 건드리지 않음
+      if (seat.locked) continue;
+      const nm = bestGlobal[id];
+      seat.name = nm ?? null;
+    }
+
+    syncOptionEnables();
+    computeViolations();
+    renderGrid();
+    updateRotationCounts();
+
+    if (forbiddenPairs.length > 0 && bestGlobalCost > 0) {
+      toast(`금지 조건을 모두 만족시키기 어려워요(남은 위반 ${bestGlobalCost}건).`);
+    }
+    log("자동 배치 완료 ✅");
+  }
+
+  // ===== Modals =====
+  function openModal(el) {
+    if (!el) return;
+    closeGroupMenu();
+    el.classList.add("open");
+    el.setAttribute("aria-hidden", "false");
+  }
+  function closeModal(el) {
+    if (!el) return;
+    el.classList.remove("open");
+    el.setAttribute("aria-hidden", "true");
+  }
+
+  document.querySelectorAll(".modalOverlay").forEach((ov) => {
+    ov.addEventListener("click", (e) => {
+      if (e.target === ov) closeModal(ov);
+    });
+  });
+  document.querySelectorAll("[data-close]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-close");
+      const el = $(id);
+      if (el) closeModal(el);
+    });
+  });
+
+  if (autoFillBtn) autoFillBtn.addEventListener("click", autoFill);
+  if (clearBtn) clearBtn.addEventListener("click", clearAll);
+  if (restoreVoidsBtn) restoreVoidsBtn.addEventListener("click", restoreVoids);
+
+  if (showSeatNo) showSeatNo.addEventListener("change", renderGrid);
+  if (showGroups) showGroups.addEventListener("change", () => { closeGroupMenu(); renderGrid(); });
+  if (showGender) showGender.addEventListener("change", renderGrid);
+
+  if (groupMode) groupMode.addEventListener("change", () => {
+    // ✅ 자동 모둠표기 모드를 바꾸면(=재계산 의도) 기존 수동 지정은 초기화
+    if (groupMode.value !== "none") {
+      seats.forEach((s) => { if (s && !s.void) s.groupManual = false; });
+    }
+    renderGrid();
+    log("모둠 크기 변경");
+  });
+  if (balanceLevels) balanceLevels.addEventListener("change", () => {
+    ensureShowGroupsForBalance();
+    renderGrid();
+    log("모둠별 수준 분산 옵션 변경");
+  });
+
+  if (resetHistoryBtn) resetHistoryBtn.addEventListener("click", () => {
+    history = {};
+    log("로테이션 기록 초기화 완료.");
+  });
+
+  if (toggleOrientationBtn) toggleOrientationBtn.addEventListener("click", () => {
+    uiMode = "none";
+    selectedSeatId = null;
+    closeGroupMenu();
+    boardAtTop = !boardAtTop;
+    updateOrientationButtonLabel();
+    renderGrid();
+    log(boardAtTop ? "방향 변경: 칠판 위" : "방향 변경: 칠판 아래 — 좌석 상하 반전 + 칠판 위치 이동");
+  });
+
+  if (openStudentsBtn) openStudentsBtn.addEventListener("click", () => openModal(studentsModal));
+  if (applyStudentsBtn) applyStudentsBtn.addEventListener("click", () => {
+    normalizeStudentsInput();
+    closeModal(studentsModal);
+    toast("적용됐어요!");
+    log("학생 명단 적용");
+  });
+
+  // 학생 입력 편의 버튼
+  if (studentsNormalizeBtn && studentsInput) {
+    studentsNormalizeBtn.addEventListener("click", () => {
+      studentsInput.value = normalizeLines(studentsInput.value);
+      toast("줄을 정리했어요!");
+    });
+  }
+  if (studentsNamesOnlyBtn && studentsInput) {
+    studentsNamesOnlyBtn.addEventListener("click", () => {
+      studentsInput.value = namesToLines(studentsInput.value);
+      toast("이름만 한 줄씩 정리했어요!");
+    });
+  }
+
+  if (openOptionsBtn) openOptionsBtn.addEventListener("click", () => openModal(optionsModal));
+  if (applyOptionsBtn) applyOptionsBtn.addEventListener("click", () => {
+    ensureShowGroupsForBalance();
+    computeViolations();
+    renderGrid();
+    closeModal(optionsModal);
+    toast("옵션이 적용됐어요!");
+  });
+  if (openSaveBtn) openSaveBtn.addEventListener("click", () => openModal(saveModal));
+
+  if (openLayoutBtn) openLayoutBtn.addEventListener("click", () => {
+    syncLayoutModalUIFromState();
+    openModal(layoutModal);
+  });
+
+  if (layoutKindSel) layoutKindSel.addEventListener("change", () => onLayoutKindChanged());
+  [colsSingleSel, rowsSingleSel, pairColsSel, rowsPairSel, groupSizeSel, groupCountSel].forEach((el) => {
+    if (el) el.addEventListener("change", updateLayoutPreview);
+  });
+
+  if (applyLayoutBtn) applyLayoutBtn.addEventListener("click", () => {
+    const kind = layoutKindSel ? layoutKindSel.value : "single";
+
+    if (kind === "single") {
+      layoutParams.singleCols = Number(colsSingleSel.value);
+      layoutParams.singleRows = Number(rowsSingleSel.value);
+    } else if (kind === "pair") {
+      layoutParams.pairCols = Number(pairColsSel.value);
+      layoutParams.pairRows = Number(rowsPairSel.value);
+    } else {
+      layoutParams.groupSize = Number(groupSizeSel.value);
+      layoutParams.groupCount = Number(groupCountSel.value);
+    }
+
+    const ok = applyLayout(kind, layoutParams);
+    if (ok) { closeModal(layoutModal); toast("책상 배열이 적용됐어요!"); }
+  });
+
+  // ===== Export (PNG/Print) =====
+  function roundRect(ctx, x, y, w, h, r, fill, stroke) {
+    const radius = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + w, y, x + w, y + h, radius);
+    ctx.arcTo(x + w, y + h, x, y + h, radius);
+    ctx.arcTo(x, y + h, x, y, radius);
+    ctx.arcTo(x, y, x + w, y, radius);
+    ctx.closePath();
+    if (fill) ctx.fill();
+    if (stroke) ctx.stroke();
+  }
+  function dashedRoundRect(ctx, x, y, w, h, r) {
+    ctx.save();
+    ctx.setLineDash([6, 6]);
+    roundRect(ctx, x, y, w, h, r, false, true);
+    ctx.restore();
+  }
+
+  function renderToCanvas() {
+    const seatW = Number(getComputedStyle(gridEl).getPropertyValue("--seatW").replace("px", "")) || 130;
+    const seatH = Number(getComputedStyle(gridEl).getPropertyValue("--seatH").replace("px", "")) || 70;
+    const gap = Number(getComputedStyle(gridEl).getPropertyValue("--gap").replace("px", "")) || 10;
+
+    const pad = 30;
+    const boardH = 80;
+    const titleH = 30;
+
+    const isPair = layoutKind === "pair";
+    const pc = isPair ? Math.max(1, Math.floor(cols / 2)) : 0;
+    const extraTotal = isPair ? (pc - 1) * pairGapExtraExport : 0;
+
+    const gridW = cols * seatW + (cols - 1) * gap + extraTotal;
+    const gridH = rows * seatH + (rows - 1) * gap;
+
+    const totalW = pad * 2 + gridW;
+    const totalH = pad * 2 + titleH + boardH + 12 + gridH;
+
+    canvas.width = Math.max(900, Math.ceil(totalW));
+    canvas.height = Math.max(650, Math.ceil(totalH));
+
+    const ctx = canvas.getContext("2d");
+
+    ctx.fillStyle = "#0b1220";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#e5e7eb";
+    ctx.font = "900 22px system-ui";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText("자리 배치도", pad, pad + 16);
+
+    const boardYTop = pad + titleH;
+    const boardYBottom = pad + titleH + gridH + 12;
+    const boardY = boardAtTop ? boardYTop : boardYBottom;
+
+    const gridY = boardAtTop ? boardY + boardH + 12 : pad + titleH;
+
+    ctx.fillStyle = "rgba(34,197,94,0.10)";
+    ctx.strokeStyle = "rgba(34,197,94,0.45)";
+    ctx.lineWidth = 2;
+    roundRect(ctx, pad, boardY, gridW, boardH, 16, true, true);
+
+    ctx.fillStyle = "#bbf7d0";
+    ctx.font = "900 26px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("칠판", pad + gridW / 2, boardY + boardH / 2);
+
+    const vioSet = new Set();
+    for (const v of violations) { vioSet.add(v.aId); vioSet.add(v.bId); }
+
+    for (let displayR = 0; displayR < rows; displayR++) {
+      const dataRow = mapDisplayRowToDataRow(displayR);
+
+      for (let c = 0; c < cols; c++) {
+        const seatId = dataRow * cols + c;
+        const seat = getSeat(seatId);
+        if (!seat) continue;
+
+        const extraX = isPair ? Math.floor(c / 2) * pairGapExtraExport : 0;
+
+        const x = pad + c * (seatW + gap) + extraX;
+        const y = gridY + displayR * (seatH + gap);
+
+        if (seat.void) {
+          ctx.fillStyle = "rgba(0,0,0,0)";
+          ctx.strokeStyle = "rgba(255,255,255,0.20)";
+          ctx.lineWidth = 2;
+          dashedRoundRect(ctx, x, y, seatW, seatH, 14);
+          ctx.fillStyle = "rgba(156,163,175,0.65)";
+          ctx.font = "800 16px system-ui";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("통로", x + seatW / 2, y + seatH / 2);
+          continue;
+        }
+
+        ctx.fillStyle = "rgba(255,255,255,0.05)";
+        ctx.strokeStyle = "rgba(229,231,235,0.35)";
+        if (seat.seatGender === "M") ctx.strokeStyle = "rgba(59,130,246,0.85)";
+        if (seat.seatGender === "F") ctx.strokeStyle = "rgba(239,68,68,0.85)";
+        ctx.lineWidth = 2;
+
+        // 고정 좌석: 파란 테두리 약간 강조
+        if (seat.locked) {
+          ctx.strokeStyle = "rgba(59,130,246,0.85)";
+          ctx.lineWidth = 2.5;
+        }
+
+        if (vioSet.has(seat.id)) { ctx.strokeStyle = "rgba(239,68,68,0.95)"; ctx.lineWidth = 3; }
+
+        roundRect(ctx, x, y, seatW, seatH, 14, true, true);
+
+        if (showSeatNo && showSeatNo.checked) {
+          ctx.fillStyle = "rgba(156,163,175,0.9)";
+          ctx.font = "800 12px system-ui";
+          ctx.textAlign = "left";
+          ctx.textBaseline = "top";
+          ctx.fillText(String(seat.id + 1), x + 10, y + 8);
+        }
+
+        // 좌상단 핀(고정 표시) - 고정인 경우만
+        if (seat.locked) {
+          ctx.fillStyle = "rgba(59,130,246,0.22)";
+          ctx.strokeStyle = "rgba(59,130,246,0.55)";
+          ctx.lineWidth = 1.5;
+          roundRect(ctx, x + 8, y + 8, 28, 20, 8, true, true);
+          ctx.fillStyle = "rgba(219,234,254,1)";
+          ctx.font = "900 12px system-ui";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("📌", x + 22, y + 18);
+        }
+
+        const nm = seat.name ? seat.name : "빈자리";
+        ctx.fillStyle = seat.name ? "#e5e7eb" : "rgba(156,163,175,0.85)";
+        ctx.font = seat.name ? "900 18px system-ui" : "800 16px system-ui";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(nm, x + seatW / 2, y + seatH / 2);
+
+        // 모둠 표시(텍스트만)
+        if (showGroups && showGroups.checked) {
+          const gid = clamp(Number(seat.groupId ?? 1), 1, 8);
+          ctx.fillStyle = "rgba(0,0,0,0.25)";
+          ctx.strokeStyle = "rgba(255,255,255,0.15)";
+          ctx.lineWidth = 1;
+          roundRect(ctx, x + 8, y + seatH - 26, 64, 18, 9, true, true);
+          ctx.fillStyle = "rgba(229,231,235,0.9)";
+          ctx.font = "800 11px system-ui";
+          ctx.textAlign = "left";
+          ctx.textBaseline = "middle";
+          ctx.fillText(`모둠 ${gid}`, x + 16, y + seatH - 17);
+        }
+
+        if (showGender && showGender.checked) {
+          const g = seat.seatGender === "A" ? "무관" : seat.seatGender === "M" ? "남" : "여";
+          ctx.fillStyle = "rgba(0,0,0,0.25)";
+          ctx.strokeStyle = "rgba(255,255,255,0.15)";
+          ctx.lineWidth = 1;
+          roundRect(ctx, x + seatW - 54, y + seatH - 26, 46, 18, 9, true, true);
+          ctx.fillStyle = "rgba(156,163,175,0.95)";
+          ctx.font = "900 11px system-ui";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(g, x + seatW - 31, y + seatH - 17);
+        }
+      }
+    }
+
+    ctx.fillStyle = "rgba(156,163,175,0.85)";
+    ctx.font = "800 12px system-ui";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "bottom";
+    ctx.fillText(new Date().toLocaleString(), pad + gridW, canvas.height - 10);
+
+    return canvas.toDataURL("image/png");
+  }
+
+  function downloadPng() {
+    const dataUrl = renderToCanvas();
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = `seatplan_${new Date().toISOString().slice(0, 10)}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    log("이미지 다운로드 완료!");
+  }
+
+  function printPlan() {
+    const dataUrl = renderToCanvas();
+    const w = window.open("", "_blank");
+    if (!w) { toast("팝업이 막혀서 인쇄창을 열 수 없어요."); return; }
+    w.document.write(`
+      <html><head><title>Print</title></head>
+      <body style="margin:0;padding:12px;background:#111;">
+        <img src="${dataUrl}" style="width:100%;max-width:1100px;display:block;margin:0 auto;" />
+      </body></html>
+    `);
+    w.document.close();
+    setTimeout(() => w.print(), 300);
+    log("인쇄창을 열었어요.");
+  }
+
+  if (downloadPngBtn) downloadPngBtn.addEventListener("click", downloadPng);
+  if (printBtn) printBtn.addEventListener("click", printPlan);
+
+  // ===== Service Worker =====
+  async function registerSW() {
+    if (!swStatusEl) return;
+
+    if (location.hostname === "127.0.0.1" || location.hostname === "localhost") {
+      swStatusEl.textContent = "개발모드(비활성)";
+      return;
+    }
+    if (!("serviceWorker" in navigator)) {
+      swStatusEl.textContent = "미지원 브라우저";
+      return;
+    }
+    try {
+      await navigator.serviceWorker.register("./sw.js");
+      swStatusEl.textContent = "등록 완료 ✅";
+    } catch (e) {
+      swStatusEl.textContent = "등록 실패 ❌";
+      log("서비스워커 등록 실패: " + e.message);
     }
   }
 
-  const dataUrl = canvas.toDataURL("image/png");
+  // ===== Save Slots =====
+  const SLOT_INDEX_KEY = "seatplan_slots_v015";
+  function slotKey(id) { return `seatplan_slot_${id}_v015`; }
 
-  const w = window.open("", "_blank");
-  if (!w) {
-    log("팝업이 막혀서 인쇄창을 열 수 없어요. 브라우저 팝업 허용 후 다시 시도해줘.");
-    return;
+  function loadSlotIndex() {
+    try {
+      const raw = localStorage.getItem(SLOT_INDEX_KEY);
+      const list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list : [];
+    } catch { return []; }
   }
-  w.document.write(`
-    <html>
-      <head><title>자리배치 인쇄</title></head>
-      <body style="margin:0;padding:0;display:flex;justify-content:center;align-items:flex-start;">
-        <img src="${dataUrl}" style="width:100%;max-width:1000px;" />
-        <script>
-          setTimeout(() => { window.print(); }, 300);
-        </script>
-      </body>
-    </html>
-  `);
-  w.document.close();
+  function saveSlotIndex(list) { localStorage.setItem(SLOT_INDEX_KEY, JSON.stringify(list)); }
 
-  log("인쇄창을 열었어.");
-}
-
-// ====== 캔버스 유틸 ======
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-function drawCenteredText(ctx, text, cx, cy, maxWidth) {
-  // 너무 길면 자동 축소(간단)
-  let size = 34;
-  ctx.font = `800 ${size}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-  while (ctx.measureText(text).width > maxWidth && size > 16) {
-    size -= 2;
-    ctx.font = `800 ${size}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+  function refreshSlotSelect() {
+    if (!slotSelect) return;
+    const list = loadSlotIndex();
+    slotSelect.innerHTML = "";
+    if (list.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "슬롯 없음";
+      slotSelect.appendChild(opt);
+      slotSelect.disabled = true;
+      return;
+    }
+    slotSelect.disabled = false;
+    for (const s of list) {
+      const opt = document.createElement("option");
+      opt.value = s.id;
+      opt.textContent = s.name;
+      slotSelect.appendChild(opt);
+    }
   }
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(text, cx, cy);
-  ctx.textAlign = "start";
-  ctx.textBaseline = "alphabetic";
-}
 
-// ====== 서비스워커 등록(기존 유지) ======
-async function registerSW() {
-  if (!("serviceWorker" in navigator)) {
-    swStatusEl.textContent = "미지원 브라우저";
-    return;
+  function initSlots() {
+    const list = loadSlotIndex();
+    if (list.length === 0) {
+      const id = String(Date.now());
+      saveSlotIndex([{ id, name: "기본 슬롯" }]);
+    }
+    refreshSlotSelect();
+    const l = loadSlotIndex();
+    if (slotSelect && l[0]) slotSelect.value = l[0].id;
   }
-  try {
-    await navigator.serviceWorker.register("./sw.js");
-    swStatusEl.textContent = "등록 완료 ✅";
-  } catch (e) {
-    swStatusEl.textContent = "등록 실패 ❌";
-    log("서비스워커 등록 실패: " + e.message);
+
+  function currentSnapshot() {
+    return {
+      version: "0.40",
+      cols, rows,
+      seatType: seatTypeSel ? seatTypeSel.value : "single",
+      boardAtTop,
+      layout: { layoutKind, layoutParams },
+      ui: {
+      useForbidden: useForbidden?.checked ?? true,
+      useRotation: useRotation?.checked ?? true,
+        showSeatNo: !!(showSeatNo && showSeatNo.checked),
+        showGroups: !!(showGroups && showGroups.checked),
+        showGender: !!(showGender && showGender.checked),
+        includeDiagonal: !!(includeDiagonal && includeDiagonal.checked),
+        groupMode: groupMode ? groupMode.value : "none",
+        balanceLevels: !!(balanceLevels && balanceLevels.checked),
+        rotateFront: !!(rotateFront && rotateFront.checked),
+        rotateBack: !!(rotateBack && rotateBack.checked),
+      },
+      text: {
+        students: studentsInput ? studentsInput.value : "",
+        forbidden: forbiddenInput ? forbiddenInput.value : "",
+      },
+      seats,
+      history,
+    };
   }
-}
 
-// ====== 이벤트 연결 ======
-colsSel.addEventListener("change", applyGridSizeFromUI);
-rowsSel.addEventListener("change", applyGridSizeFromUI);
-seatTypeSel.addEventListener("change", renderGrid);
+  function applySnapshot(snap) {
+    if (!snap) return;
 
-showSeatNo.addEventListener("change", renderGrid);
-showEmpty.addEventListener("change", renderGrid);
+    if (snap.layout && snap.layout.layoutKind) {
+      layoutKind = snap.layout.layoutKind;
+      layoutParams = snap.layout.layoutParams || layoutParams;
+      const ok = applyLayout(layoutKind, layoutParams);
+      if (!ok) {
+        cols = Number(snap.cols ?? 5);
+        rows = Number(snap.rows ?? 6);
+        if (seatTypeSel) seatTypeSel.value = "single";
+        buildSeatModel();
+      }
+    } else {
+      cols = Number(snap.cols ?? 5);
+      rows = Number(snap.rows ?? 6);
+      if (seatTypeSel) seatTypeSel.value = "single";
+      layoutKind = "single";
+      buildSeatModel();
+    }
 
-autoFillBtn.addEventListener("click", autoFill);
-shuffleBtn.addEventListener("click", doShuffle);
-clearBtn.addEventListener("click", clearAll);
+    boardAtTop = !!snap.boardAtTop;
 
-downloadPngBtn.addEventListener("click", downloadPng);
-printBtn.addEventListener("click", printPlan);
+    const ui = snap.ui || {};
+    if (showSeatNo) showSeatNo.checked = !!ui.showSeatNo;
+    if (showGroups) showGroups.checked = !!ui.showGroups;
+    if (showGender) showGender.checked = !!ui.showGender;
+    if (includeDiagonal) includeDiagonal.checked = !!ui.includeDiagonal;
+    if (groupMode) groupMode.value = ui.groupMode ?? "none";
+    if (balanceLevels) balanceLevels.checked = !!ui.balanceLevels;
+    if (rotateFront) rotateFront.checked = !!ui.rotateFront;
+    if (rotateBack) rotateBack.checked = !!ui.rotateBack;
+    if (useForbidden) useForbidden.checked = ui.useForbidden ?? true;
+    if (useRotation) useRotation.checked = ui.useRotation ?? true;
 
-// ====== 시작 ======
-registerSW();
-applyGridSizeFromUI();
+    const text = snap.text || {};
+    if (studentsInput) studentsInput.value = text.students ?? "";
+    if (forbiddenInput) forbiddenInput.value = text.forbidden ?? "";
 
-// 예시 데이터(처음엔 빈칸이 더 친절하지만, 테스트가 쉽도록 샘플)
-studentsInput.value = `1번
-2번
-3번
-4번
-5번
-6번
-7번
-8번
-9번
-10번
-11번
-12번
-13번
-14번
-15번
-16번
-17번
-18번
-19번
-20번
-21번
-22번
-23번
-24번
-25번
-26번
-27번
-28번`;
+    history = snap.history || {};
+
+    if (Array.isArray(snap.seats)) {
+      for (const src of snap.seats) {
+        const dst = getSeat(src.id);
+        if (!dst) continue;
+        dst.name = src.name ?? null;
+        dst.locked = !!src.locked;
+        dst.void = !!src.void;
+        dst.groupId = clamp(Number(src.groupId ?? 1), 1, 8);
+        dst.groupManual = !!src.groupManual;
+        dst.seatGender = src.seatGender ?? "A";
+      }
+    }
+
+    uiMode = "none";
+    selectedSeatId = null;
+    closeGroupMenu();
+    updateOrientationButtonLabel();
+    syncOptionEnables();
+    computeViolations();
+    renderGrid();
+  }
+
+  if (newSlotBtn) newSlotBtn.addEventListener("click", () => {
+    const name = prompt("새 슬롯 이름(예: 3-2반 3월)");
+    if (!name) return;
+    const list = loadSlotIndex();
+    const id = String(Date.now());
+    list.unshift({ id, name });
+    saveSlotIndex(list);
+    refreshSlotSelect();
+    if (slotSelect) slotSelect.value = id;
+    log(`슬롯 생성: ${name}`);
+  });
+
+  if (saveBtn) saveBtn.addEventListener("click", () => {
+    const id = slotSelect ? slotSelect.value : "";
+    if (!id) { toast("저장할 슬롯을 선택하세요."); return; }
+    localStorage.setItem(slotKey(id), JSON.stringify(currentSnapshot()));
+    toast("저장 완료!");
+    log("슬롯 저장 완료");
+  });
+
+  if (loadBtn) loadBtn.addEventListener("click", () => {
+    const id = slotSelect ? slotSelect.value : "";
+    if (!id) { toast("불러올 슬롯을 선택하세요."); return; }
+    const raw = localStorage.getItem(slotKey(id));
+    if (!raw) { toast("저장 데이터가 없어요."); return; }
+    try {
+      applySnapshot(JSON.parse(raw));
+      toast("불러오기 완료!");
+      log("슬롯 불러오기 완료");
+    } catch { toast("불러오기 실패(데이터 손상)."); }
+  });
+
+  if (deleteSlotBtn) deleteSlotBtn.addEventListener("click", () => {
+    const id = slotSelect ? slotSelect.value : "";
+    if (!id) { toast("삭제할 슬롯이 없어요."); return; }
+    if (!confirm("이 슬롯을 삭제할까요?")) return;
+
+    localStorage.removeItem(slotKey(id));
+    let list = loadSlotIndex();
+    list = list.filter((x) => x.id !== id);
+    saveSlotIndex(list);
+    refreshSlotSelect();
+    toast("슬롯 삭제 완료");
+    log("슬롯 삭제 완료");
+  });
+
+  if (forbiddenInput) forbiddenInput.addEventListener("input", () => {
+    syncOptionEnables();
+    computeViolations();
+    renderGrid();
+  });
+
+  if (includeDiagonal) includeDiagonal.addEventListener("change", () => {
+    computeViolations();
+    renderGrid();
+  });
+
+  if (useForbidden) useForbidden.addEventListener("change", () => {
+    syncOptionEnables();
+    computeViolations();
+    renderGrid();
+  });
+
+  if (useRotation) useRotation.addEventListener("change", () => {
+    syncOptionEnables();
+  });
+
+  // ===== Start =====
+  function start() {
+    registerSW();
+    initSlots();
+    updateOrientationButtonLabel();
+    applyHintVisibility();
+
+    layoutKind = "single";
+    layoutParams.singleCols = 5;
+    layoutParams.singleRows = 6;
+    applyLayout("single", layoutParams);
+
+    syncLayoutModalUIFromState();
+    log("v0.31 시작: 금지쌍/그룹(쉼표) 인접 금지 자동배치 반영");
+    log("v0.30 변경: 고정좌석 핀(좌상단) + 모둠태그 색상 + 잘림없는 모둠 메뉴 + 최소 책상 크기");
+  }
+
+  start();
+})()
+  function normalizeStudentsInput() {
+    if (!studentsInput) return;
+    const lines = (studentsInput.value || "")
+      .replace(/\r/g, "\n")
+      .split("\n")
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .map((x) => x.replace(/\s+/g, " "));
+    studentsInput.value = lines.join("\n");
+  }
+
+;

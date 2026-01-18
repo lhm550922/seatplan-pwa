@@ -159,6 +159,34 @@ button.multiline{
   .menuBar{ grid-template-columns: 1fr; }
 }
 
+/* Phone (minimal support) */
+@media (max-width: 600px){
+  /* Put action buttons (저장/다운로드/인쇄) on the very top row */
+  .menuRight{ grid-row:1; align-items:flex-end; }
+  .menuLeft{ grid-row:2; }
+
+  /* Mode buttons: 4 buttons in one line */
+  .menuRowModes{
+    display:grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap:8px;
+    width:100%;
+  }
+  .menuRowModes .ghost{
+    padding:10px 6px;
+    font-size:14px;
+  }
+  .btnEmoji{ display:none; }
+
+  /* Avoid left-cutoff: start grid at left, allow horizontal scroll */
+  .grid{ justify-content:flex-start; }
+
+  /* Make touch selection visually obvious */
+  .seat.showActions{
+    box-shadow: 0 0 0 2px rgba(252, 211, 77, .35) inset;
+  }
+}
+
 .menuCol{ display:flex; flex-direction:column; gap:8px; }
 .menuRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 

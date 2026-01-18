@@ -1222,11 +1222,23 @@ function parseStudents(text) {
       // 모드가 켜져 있으면(성별/핀) 일반 클릭 선택은 안 함
       if (uiMode !== "none") return;
 
-      // 터치 환경: 탭하면 아이콘 표시 토글
+      // 터치 환경:
+      // - 탭 1회: 해당 좌석의 아이콘(삭제/복구 등) 표시
+      // - 다른 좌석을 탭: 좌석 이동/교체(탭-탭 방식)
       if (isTouchLike()) {
-        if (selectedSeatId === id) selectedSeatId = null;
-        else selectedSeatId = id;
-        renderGrid();
+        if (selectedSeatId != null && selectedSeatId !== id) {
+          const fromId = selectedSeatId;
+          swapSeatState(fromId, id);
+          selectedSeatId = null;
+          closeGroupMenu();
+          computeViolations();
+          renderGrid();
+          log(`좌석 교체: 좌석 ${fromId + 1} ↔ 좌석 ${id + 1}`);
+        } else {
+          selectedSeatId = (selectedSeatId === id) ? null : id;
+          closeGroupMenu();
+          renderGrid();
+        }
         return;
       }
 

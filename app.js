@@ -1,4 +1,4 @@
-/* SeatPlan PWA - app.js v0.39
+/* SeatPlan PWA - app.js v0.41
    변경(요청 반영):
    1) 고정 좌석(📌): '고정 좌석' 버튼 클릭 시 각 좌석 좌상단에 작은 핀 아이콘 표시(삭제 아이콘과 동일 크기).
       - 핀 클릭으로 고정/해제
@@ -70,7 +70,7 @@
 
   // ✅ 버튼 툴팁(설명 풍선)
   if (modeGenderBtn) modeGenderBtn.dataset.tip = "성별에 따른 자리 배치";
-  if (modePinBtn) modePinBtn.dataset.tip = "지정한 학생 자리를 고정";
+  if (modePinBtn) modePinBtn.dataset.tip = "학생을 이 자리에 고정";
 
   const hintBar = $("hintBar");
   const hintCloseBtn = $("hintCloseBtn");
@@ -822,7 +822,8 @@ function parseStudents(text) {
     if (vioSet.has(seat.id)) div.classList.add("violation");
     div.classList.add(...genderClass(seat).split(" ").filter(Boolean));
 
-    div.draggable = uiMode === "none";
+      // 모바일(터치)에서는 드래그가 스크롤과 충돌하기 쉬워서 최소지원: 드래그 비활성화
+      div.draggable = (uiMode === "none" && !isTouchLike());
 
     if (showSeatNo && showSeatNo.checked) {
       const no = document.createElement("div");
@@ -1101,6 +1102,7 @@ function parseStudents(text) {
   // ===== Drag & Drop (move/swap) =====
   if (gridEl) {
     gridEl.addEventListener("dragstart", (e) => {
+			if (isTouchLike()) { e.preventDefault(); return; }
       if (uiMode !== "none") return;
       const seatDiv = e.target.closest(".seat");
       if (!seatDiv) return;
@@ -1118,12 +1120,14 @@ function parseStudents(text) {
     });
 
     gridEl.addEventListener("dragover", (e) => {
+			if (isTouchLike()) return;
       if (uiMode !== "none") return;
       e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
     });
 
     gridEl.addEventListener("drop", (e) => {
+			if (isTouchLike()) return;
       if (uiMode !== "none") return;
       e.preventDefault();
 
@@ -1242,6 +1246,24 @@ function parseStudents(text) {
       closeGroupMenu();
     }
   });
+
+  // 모바일: 좌석 밖을 탭하면(스크롤 시작 포함) 액션 아이콘을 즉시 숨김
+  document.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (!isTouchLike()) return;
+      const insideGrid = e.target.closest("#grid");
+      const insideMenu = e.target.closest("#groupMenu");
+      const insideModal = e.target.closest(".modal");
+      if (!insideGrid && !insideMenu && !insideModal) {
+        if (selectedSeatId != null) {
+          selectedSeatId = null;
+          renderGrid();
+        }
+      }
+    },
+    { passive: true }
+  );
 
   // ===== Group Menu (fixed, not clipped) =====
   const groupMenuState = { open: false, seatId: null };
@@ -1947,7 +1969,7 @@ function parseStudents(text) {
 
   function currentSnapshot() {
     return {
-      version: "0.40",
+  version: "0.41",
       cols, rows,
       seatType: seatTypeSel ? seatTypeSel.value : "single",
       boardAtTop,

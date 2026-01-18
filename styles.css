@@ -231,6 +231,9 @@ button.multiline{
   border-radius:12px;
   background:rgba(0,0,0,.18);
   overflow:auto;
+  /* 모바일에서 스크롤/터치 경험 개선 */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   display:flex;
   flex-direction:column;
   gap:8px;
@@ -300,6 +303,9 @@ button.multiline{
   user-select:none;
   padding: 0 10px;
   pointer-events:auto;
+  /* 모바일 탭 UX 개선 */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* (겹침 방지) pair 클래스가 붙어도 폭 확장 안 함 */

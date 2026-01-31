@@ -1,4 +1,4 @@
-/* SeatPlan PWA - app.js v0.41
+/* SeatPlan PWA - app.js v0.83
    변경(요청 반영):
    1) 고정 좌석(📌): '고정 좌석' 버튼 클릭 시 각 좌석 좌상단에 작은 핀 아이콘 표시(삭제 아이콘과 동일 크기).
       - 핀 클릭으로 고정/해제
@@ -38,14 +38,41 @@
   const optionsModal = $("optionsModal");
   const applyOptionsBtn = $("applyOptionsBtn");
   const saveModal = $("saveModal");
+  const shareBtn = $("shareBtn");
+  const shareBox = $("shareBox");
+  const shareCloseBtn = $("shareCloseBtn");
+  const shareApplyBtn = $("shareApplyBtn");
+  const shareCopyBtn = $("shareCopyBtn");
+  const shareLinkInput = $("shareLinkInput");
+  const sharePreview = $("sharePreview");
+  const shareWarnToggle = $("shareWarnToggle");
+  const shareWarnText = $("shareWarnText");
+
+  const incomingShareModal = $("incomingShareModal");
+  const incomingApplyBtn = $("incomingApplyBtn");
+  const incomingSharePreview = $("incomingSharePreview");
+  const incomingWarnToggle = $("incomingWarnToggle");
+  const incomingWarnText = $("incomingWarnText");
 
   const studentsInput = $("studentsInput");
   const applyStudentsBtn = $("applyStudentsBtn");
+  // 학생 입력(표 UI)
+  const studentsTable = $("studentsTable");
+  const studentsTbody = $("studentsTbody");
+  const useGenderToggle = $("useGenderToggle");
+  const useLevelToggle = $("useLevelToggle");
+  const genderBulkRow = $("genderBulkRow");
+  const applyGenderBulkBtn = $("applyGenderBulkBtn");
+  const addStudentRowBtn = $("addStudentRowBtn");
+  const clearStudentsBtn = $("clearStudentsBtn");
   const studentsNormalizeBtn = $("studentsNormalizeBtn");
   const studentsNamesOnlyBtn = $("studentsNamesOnlyBtn");
   const forbiddenInput = $("forbiddenInput");
   const useForbidden = $("useForbidden");
   const includeDiagonal = $("includeDiagonal");
+  // 세부 옵션: 금지쌍(그룹 UI)
+  const forbiddenGroupsContainer = $("forbiddenGroupsContainer");
+  const addForbiddenGroupBtn = $("addForbiddenGroupBtn");
 
   const showSeatNo = $("showSeatNo");
   const showGroups = $("showGroups");
@@ -76,6 +103,8 @@
   const hintCloseBtn = $("hintCloseBtn");
 
   const slotSelect = $("slotSelect");
+  const slotList = $("slotList");
+  const slotEmpty = $("slotEmpty");
   const newSlotBtn = $("newSlotBtn");
   const saveBtn = $("saveBtn");
   const loadBtn = $("loadBtn");
@@ -118,6 +147,7 @@
   function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
 
   let toastEl = null;
+  let centerToastEl = null;
   function toast(msg) {
     if (!toastEl) {
       toastEl = document.createElement("div");
@@ -130,10 +160,494 @@
     toastEl._t = setTimeout(() => toastEl.classList.remove("show"), 1300);
   }
 
+  function centerToast(msg) {
+    if (!centerToastEl) {
+      centerToastEl = document.createElement("div");
+      centerToastEl.className = "centerToast";
+      centerToastEl.setAttribute("role", "status");
+      centerToastEl.setAttribute("aria-live", "polite");
+
+      // ✅ 캐시/스타일 누락에도 항상 보이도록 인라인 스타일을 강제
+      Object.assign(centerToastEl.style, {
+        position: "fixed",
+        left: "50%",
+        top: "50%",
+        transform: "translate(-50%, -50%) scale(0.98)",
+        background: "rgba(0,0,0,0.82)",
+        border: "1px solid rgba(255,255,255,0.18)",
+        color: "rgba(229,231,235,0.98)",
+        padding: "14px 18px",
+        borderRadius: "16px",
+        fontSize: "16px",
+        fontWeight: "900",
+        zIndex: "2147483647",
+        opacity: "0",
+        pointerEvents: "none",
+        transition: "opacity .15s ease, transform .15s ease",
+        maxWidth: "min(520px, calc(100vw - 40px))",
+        textAlign: "center",
+        boxShadow: "0 16px 44px rgba(0,0,0,.45)",
+        display: "block",
+      });
+
+      document.body.appendChild(centerToastEl);
+    }
+
+    centerToastEl.textContent = msg;
+
+    // 항상 다시 보이도록(연속 클릭/상태 꼬임 방지)
+    centerToastEl.classList.remove("show");
+    // reflow
+    void centerToastEl.offsetWidth;
+
+    // show (class + inline 둘 다)
+    requestAnimationFrame(() => {
+      centerToastEl.classList.add("show");
+      centerToastEl.style.opacity = "1";
+      centerToastEl.style.transform = "translate(-50%, -50%) scale(1)";
+    });
+
+    clearTimeout(centerToastEl._t);
+    clearTimeout(centerToastEl._t2);
+
+    // hide
+    centerToastEl._t = setTimeout(() => {
+      centerToastEl.classList.remove("show");
+      centerToastEl.style.opacity = "0";
+      centerToastEl.style.transform = "translate(-50%, -50%) scale(0.98)";
+      // transition 이후 완전 투명 상태 유지(요소는 남겨둠)
+    }, 1800);
+  }
+
   const isTouchLike = () =>
     (window.matchMedia && window.matchMedia("(hover: none)").matches) ||
     ("ontouchstart" in window) ||
     (navigator.maxTouchPoints || 0) > 0;
+
+  
+  // ===== Share link (v0.79) =====
+  // Lightweight LZ-based compression (LZ-String compatible subset)
+  // Source idea: https://pieroxy.net/blog/pages/lz-string/index.html (public domain-like / MIT)
+  const LZ = (() => {
+    const f = String.fromCharCode;
+    const keyStrUriSafe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$";
+    const getBaseValue = (alphabet, character) => alphabet.indexOf(character);
+
+    function compressToEncodedURIComponent(input) {
+      if (input == null) return "";
+      return _compress(input, 6, (a) => keyStrUriSafe.charAt(a));
+    }
+    function decompressFromEncodedURIComponent(input) {
+      if (input == null) return "";
+      if (input === "") return null;
+      input = input.replace(/ /g, "+");
+      return _decompress(input.length, 32, (index) => getBaseValue(keyStrUriSafe, input.charAt(index)));
+    }
+
+    function _compress(uncompressed, bitsPerChar, getCharFromInt) {
+      if (uncompressed == null) return "";
+      let i, value;
+      const context_dictionary = {};
+      const context_dictionaryToCreate = {};
+      let context_c = "";
+      let context_wc = "";
+      let context_w = "";
+      let context_enlargeIn = 2; // Compensate for the first entry which should not count
+      let context_dictSize = 3;
+      let context_numBits = 2;
+      let context_data = [];
+      let context_data_val = 0;
+      let context_data_position = 0;
+
+      for (let ii = 0; ii < uncompressed.length; ii += 1) {
+        context_c = uncompressed.charAt(ii);
+        if (!Object.prototype.hasOwnProperty.call(context_dictionary, context_c)) {
+          context_dictionary[context_c] = context_dictSize++;
+          context_dictionaryToCreate[context_c] = true;
+        }
+
+        context_wc = context_w + context_c;
+        if (Object.prototype.hasOwnProperty.call(context_dictionary, context_wc)) {
+          context_w = context_wc;
+        } else {
+          if (Object.prototype.hasOwnProperty.call(context_dictionaryToCreate, context_w)) {
+            if (context_w.charCodeAt(0) < 256) {
+              for (i = 0; i < context_numBits; i++) {
+                context_data_val = (context_data_val << 1);
+                if (context_data_position == bitsPerChar - 1) {
+                  context_data_position = 0;
+                  context_data.push(getCharFromInt(context_data_val));
+                  context_data_val = 0;
+                } else {
+                  context_data_position++;
+                }
+              }
+              value = context_w.charCodeAt(0);
+              for (i = 0; i < 8; i++) {
+                context_data_val = (context_data_val << 1) | (value & 1);
+                if (context_data_position == bitsPerChar - 1) {
+                  context_data_position = 0;
+                  context_data.push(getCharFromInt(context_data_val));
+                  context_data_val = 0;
+                } else {
+                  context_data_position++;
+                }
+                value = value >> 1;
+              }
+            } else {
+              value = 1;
+              for (i = 0; i < context_numBits; i++) {
+                context_data_val = (context_data_val << 1) | value;
+                if (context_data_position == bitsPerChar - 1) {
+                  context_data_position = 0;
+                  context_data.push(getCharFromInt(context_data_val));
+                  context_data_val = 0;
+                } else {
+                  context_data_position++;
+                }
+                value = 0;
+              }
+              value = context_w.charCodeAt(0);
+              for (i = 0; i < 16; i++) {
+                context_data_val = (context_data_val << 1) | (value & 1);
+                if (context_data_position == bitsPerChar - 1) {
+                  context_data_position = 0;
+                  context_data.push(getCharFromInt(context_data_val));
+                  context_data_val = 0;
+                } else {
+                  context_data_position++;
+                }
+                value = value >> 1;
+              }
+            }
+            context_enlargeIn--;
+            if (context_enlargeIn == 0) {
+              context_enlargeIn = Math.pow(2, context_numBits);
+              context_numBits++;
+            }
+            delete context_dictionaryToCreate[context_w];
+          } else {
+            value = context_dictionary[context_w];
+            for (i = 0; i < context_numBits; i++) {
+              context_data_val = (context_data_val << 1) | (value & 1);
+              if (context_data_position == bitsPerChar - 1) {
+                context_data_position = 0;
+                context_data.push(getCharFromInt(context_data_val));
+                context_data_val = 0;
+              } else {
+                context_data_position++;
+              }
+              value = value >> 1;
+            }
+          }
+          context_enlargeIn--;
+          if (context_enlargeIn == 0) {
+            context_enlargeIn = Math.pow(2, context_numBits);
+            context_numBits++;
+          }
+          context_dictionary[context_wc] = context_dictSize++;
+          context_w = String(context_c);
+        }
+      }
+
+      if (context_w !== "") {
+        if (Object.prototype.hasOwnProperty.call(context_dictionaryToCreate, context_w)) {
+          if (context_w.charCodeAt(0) < 256) {
+            for (i = 0; i < context_numBits; i++) {
+              context_data_val = (context_data_val << 1);
+              if (context_data_position == bitsPerChar - 1) {
+                context_data_position = 0;
+                context_data.push(getCharFromInt(context_data_val));
+                context_data_val = 0;
+              } else {
+                context_data_position++;
+              }
+            }
+            value = context_w.charCodeAt(0);
+            for (i = 0; i < 8; i++) {
+              context_data_val = (context_data_val << 1) | (value & 1);
+              if (context_data_position == bitsPerChar - 1) {
+                context_data_position = 0;
+                context_data.push(getCharFromInt(context_data_val));
+                context_data_val = 0;
+              } else {
+                context_data_position++;
+              }
+              value = value >> 1;
+            }
+          } else {
+            value = 1;
+            for (i = 0; i < context_numBits; i++) {
+              context_data_val = (context_data_val << 1) | value;
+              if (context_data_position == bitsPerChar - 1) {
+                context_data_position = 0;
+                context_data.push(getCharFromInt(context_data_val));
+                context_data_val = 0;
+              } else {
+                context_data_position++;
+              }
+              value = 0;
+            }
+            value = context_w.charCodeAt(0);
+            for (i = 0; i < 16; i++) {
+              context_data_val = (context_data_val << 1) | (value & 1);
+              if (context_data_position == bitsPerChar - 1) {
+                context_data_position = 0;
+                context_data.push(getCharFromInt(context_data_val));
+                context_data_val = 0;
+              } else {
+                context_data_position++;
+              }
+              value = value >> 1;
+            }
+          }
+          context_enlargeIn--;
+          if (context_enlargeIn == 0) {
+            context_enlargeIn = Math.pow(2, context_numBits);
+            context_numBits++;
+          }
+          delete context_dictionaryToCreate[context_w];
+        } else {
+          value = context_dictionary[context_w];
+          for (i = 0; i < context_numBits; i++) {
+            context_data_val = (context_data_val << 1) | (value & 1);
+            if (context_data_position == bitsPerChar - 1) {
+              context_data_position = 0;
+              context_data.push(getCharFromInt(context_data_val));
+              context_data_val = 0;
+            } else {
+              context_data_position++;
+            }
+            value = value >> 1;
+          }
+        }
+
+        context_enlargeIn--;
+        if (context_enlargeIn == 0) {
+          context_enlargeIn = Math.pow(2, context_numBits);
+          context_numBits++;
+        }
+      }
+
+      value = 2;
+      for (i = 0; i < context_numBits; i++) {
+        context_data_val = (context_data_val << 1) | (value & 1);
+        if (context_data_position == bitsPerChar - 1) {
+          context_data_position = 0;
+          context_data.push(getCharFromInt(context_data_val));
+          context_data_val = 0;
+        } else {
+          context_data_position++;
+        }
+        value = value >> 1;
+      }
+
+      while (true) {
+        context_data_val = (context_data_val << 1);
+        if (context_data_position == bitsPerChar - 1) {
+          context_data.push(getCharFromInt(context_data_val));
+          break;
+        } else context_data_position++;
+      }
+      return context_data.join("");
+    }
+
+    function _decompress(length, resetValue, getNextValue) {
+      const dictionary = [];
+      let next;
+      let enlargeIn = 4;
+      let dictSize = 4;
+      let numBits = 3;
+      let entry = "";
+      let result = [];
+      let i;
+      let w;
+      let bits, resb, maxpower, power;
+      const data = { val: getNextValue(0), position: resetValue, index: 1 };
+
+      for (i = 0; i < 3; i += 1) {
+        dictionary[i] = i;
+      }
+
+      bits = 0;
+      maxpower = Math.pow(2, 2);
+      power = 1;
+      while (power != maxpower) {
+        resb = data.val & data.position;
+        data.position >>= 1;
+        if (data.position == 0) {
+          data.position = resetValue;
+          data.val = getNextValue(data.index++);
+        }
+        bits |= (resb > 0 ? 1 : 0) * power;
+        power <<= 1;
+      }
+
+      switch (next = bits) {
+        case 0:
+          bits = 0;
+          maxpower = Math.pow(2, 8);
+          power = 1;
+          while (power != maxpower) {
+            resb = data.val & data.position;
+            data.position >>= 1;
+            if (data.position == 0) {
+              data.position = resetValue;
+              data.val = getNextValue(data.index++);
+            }
+            bits |= (resb > 0 ? 1 : 0) * power;
+            power <<= 1;
+          }
+          w = f(bits);
+          break;
+        case 1:
+          bits = 0;
+          maxpower = Math.pow(2, 16);
+          power = 1;
+          while (power != maxpower) {
+            resb = data.val & data.position;
+            data.position >>= 1;
+            if (data.position == 0) {
+              data.position = resetValue;
+              data.val = getNextValue(data.index++);
+            }
+            bits |= (resb > 0 ? 1 : 0) * power;
+            power <<= 1;
+          }
+          w = f(bits);
+          break;
+        case 2:
+          return "";
+      }
+      dictionary[3] = w;
+      result.push(w);
+
+      while (true) {
+        if (data.index > length) return "";
+
+        bits = 0;
+        maxpower = Math.pow(2, numBits);
+        power = 1;
+        while (power != maxpower) {
+          resb = data.val & data.position;
+          data.position >>= 1;
+          if (data.position == 0) {
+            data.position = resetValue;
+            data.val = getNextValue(data.index++);
+          }
+          bits |= (resb > 0 ? 1 : 0) * power;
+          power <<= 1;
+        }
+
+        switch (next = bits) {
+          case 0:
+            bits = 0;
+            maxpower = Math.pow(2, 8);
+            power = 1;
+            while (power != maxpower) {
+              resb = data.val & data.position;
+              data.position >>= 1;
+              if (data.position == 0) {
+                data.position = resetValue;
+                data.val = getNextValue(data.index++);
+              }
+              bits |= (resb > 0 ? 1 : 0) * power;
+              power <<= 1;
+            }
+            dictionary[dictSize++] = f(bits);
+            next = dictSize - 1;
+            enlargeIn--;
+            break;
+          case 1:
+            bits = 0;
+            maxpower = Math.pow(2, 16);
+            power = 1;
+            while (power != maxpower) {
+              resb = data.val & data.position;
+              data.position >>= 1;
+              if (data.position == 0) {
+                data.position = resetValue;
+                data.val = getNextValue(data.index++);
+              }
+              bits |= (resb > 0 ? 1 : 0) * power;
+              power <<= 1;
+            }
+            dictionary[dictSize++] = f(bits);
+            next = dictSize - 1;
+            enlargeIn--;
+            break;
+          case 2:
+            return result.join("");
+        }
+
+        if (enlargeIn == 0) {
+          enlargeIn = Math.pow(2, numBits);
+          numBits++;
+        }
+
+        if (dictionary[next]) {
+          entry = dictionary[next];
+        } else {
+          if (next === dictSize) entry = w + w.charAt(0);
+          else return null;
+        }
+        result.push(entry);
+
+        dictionary[dictSize++] = w + entry.charAt(0);
+        enlargeIn--;
+
+        w = entry;
+
+        if (enlargeIn == 0) {
+          enlargeIn = Math.pow(2, numBits);
+          numBits++;
+        }
+      }
+    }
+
+    return { compressToEncodedURIComponent, decompressFromEncodedURIComponent };
+  })();
+
+  const encodeShareState = (snap) => {
+    try {
+      return LZ.compressToEncodedURIComponent(JSON.stringify(snap));
+    } catch (e) {
+      return "";
+    }
+  };
+  const decodeShareState = (s) => {
+    try {
+      const raw = LZ.decompressFromEncodedURIComponent(s);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) {
+      return null;
+    }
+  };
+
+  function renderSharePreview(hostEl, snap) {
+    if (!hostEl) return;
+    if (!snap) { hostEl.innerHTML = "<div class='pvRow'><div class='pvK'>상태</div><div class='pvV'>미리보기를 불러올 수 없어요.</div></div>"; return; }
+
+    const seatCount = Array.isArray(snap.seats) ? snap.seats.filter((x)=>x && !x.void).length : 0;
+    const voidCount = Array.isArray(snap.seats) ? snap.seats.filter((x)=>x && x.void).length : 0;
+    const studentText = snap.text?.students || "";
+    const studentCount = studentText ? studentText.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean).length : 0;
+
+    const rows = [
+      ["버전", snap.version || "-"],
+      ["격자", `${snap.rows ?? "?"} × ${snap.cols ?? "?"}`],
+      ["좌석", `${seatCount}개`],
+      ["통로", `${voidCount}개`],
+      ["학생 입력", `${studentCount}명(대략)`],
+      ["표시", `${(snap.ui?.showSeatNo ? "번호 " : "")}${(snap.ui?.showGroups ? "모둠 " : "")}${(snap.ui?.showGender ? "성별" : "")}`.trim() || "없음"],
+    ];
+
+    hostEl.innerHTML = rows.map(([k,v]) =>
+      `<div class="pvRow"><div class="pvK">${k}</div><div class="pvV">${String(v)}</div></div>`
+    ).join("");
+  }
+
 
   // ===== Hint bar =====
   const HINT_HIDE_KEY = "seatplan_hint_hidden_v026";
@@ -199,7 +713,7 @@
       locked: false,
       void: false,
       groupId: 1,     // ✅ 기본 1
-      // ✅ v0.40: 수동으로 선택한 모둠 번호는 자동 모둠표기(groupMode)로 덮어쓰지 않음
+      // ✅ v0.79: 수동으로 선택한 모둠 번호는 자동 모둠표기(groupMode)로 덮어쓰지 않음
       groupManual: false,
       seatGender: "A" // A/M/F
     }));
@@ -207,6 +721,9 @@
 
   function mapDisplayRowToDataRow(displayRow) {
     return boardAtTop ? displayRow : rows - 1 - displayRow;
+  }
+  function mapDisplayColToDataCol(displayCol) {
+    return boardAtTop ? displayCol : cols - 1 - displayCol;
   }
   function frontRowIndexData() { return boardAtTop ? 0 : rows - 1; }
   function backRowIndexData() { return boardAtTop ? rows - 1 : 0; }
@@ -226,8 +743,8 @@
   function updateOrientationButtonLabel() {
     if (!toggleOrientationBtn) return;
     toggleOrientationBtn.innerHTML = boardAtTop
-      ? "칠판을 아래로<br>(교사 시점)"
-      : "칠판을 위로<br>(학생 시점)";
+      ? "교사 시점으로<br>바꾸기"
+      : "학생 시점으로<br>바꾸기";
   }
   function renderOrientation() {
     if (!stageEl) return;
@@ -243,13 +760,13 @@
     return "A";
   }
   function normLevel(tok) {
-    if (!tok) return "중";
-    const t = tok.trim();
+    if (!tok) return "";
+const t = tok.trim();
     if (t === "상") return "상";
     if (t === "하") return "하";
     return "중";
   }
-  // 학생 입력 편의 기능(v0.30)
+  // 학생 입력 편의 기능(v0.79)
   function normalizeLines(text){
     return (text||"")
       .replace(/\r/g,"\n")
@@ -284,6 +801,249 @@ function parseStudents(text) {
     }
     return students;
   }
+
+  // ===== 학생 입력(표 UI) v0.79 =====
+  // 학생 입력 UI: 성별/학습수준 사용 토글 (표 헤더 체크박스)
+let studentsInitPhase = false;
+
+function studentsSetVisibility(){
+  if(!studentsModal) return;
+
+  const genderOn = !!(useGenderToggle && useGenderToggle.checked);
+  const levelOn  = !!(useLevelToggle && useLevelToggle.checked);
+
+  // 스타일(회색/비활성)용 클래스
+  studentsModal.classList.toggle("genderDisabled", !genderOn);
+  studentsModal.classList.toggle("levelDisabled", !levelOn);
+
+  const prevGenderOn = (studentsModal.dataset.genderOn === "1");
+  const prevLevelOn  = (studentsModal.dataset.levelOn === "1");
+
+  const rows = getStudentsTableRows();
+
+  // ✅ 토글을 켜는 순간(초기화 단계 제외) 기본값으로 전원 세팅
+  if(!studentsInitPhase){
+    if(genderOn && !prevGenderOn){
+      for(const tr of rows) setRowRadioValue(tr, "g", "남");
+    }
+    if(levelOn && !prevLevelOn){
+      for(const tr of rows) setRowRadioValue(tr, "l", "중");
+    }
+  }
+
+  // ✅ 비활성 시 선택 불가(disabled)
+  for(const tr of rows){
+    tr.querySelectorAll('input[type="radio"][name^="g_"]').forEach((r)=>{
+      if(r instanceof HTMLInputElement) r.disabled = !genderOn;
+    });
+    tr.querySelectorAll('input[type="radio"][name^="l_"]').forEach((r)=>{
+      if(r instanceof HTMLInputElement) r.disabled = !levelOn;
+    });
+  }
+
+  studentsModal.dataset.genderOn = genderOn ? "1" : "0";
+  studentsModal.dataset.levelOn  = levelOn  ? "1" : "0";
+}
+
+  function buildStudentsRows(count){
+    if(!studentsTbody) return;
+    studentsTbody.innerHTML = "";
+    for(let i=0;i<count;i++){
+      const idx = i+1;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="rowNo">${idx}.</td>
+        <td><input type="text" class="stuName" placeholder="이름" autocomplete="off" autocapitalize="off" spellcheck="false"/></td>
+        <td class="genderCell">
+          <div class="radioGroup" role="radiogroup" aria-label="성별">
+            <label class="radioItem"><input type="radio" name="g_${idx}" value="남" checked/> 남</label>
+            <label class="radioItem"><input type="radio" name="g_${idx}" value="여"/> 여</label>
+          </div>
+        </td>
+        <td class="levelCell">
+          <div class="radioGroup" role="radiogroup" aria-label="학습 수준">
+            <label class="radioItem"><input type="radio" name="l_${idx}" value="상"/> 상</label>
+            <label class="radioItem"><input type="radio" name="l_${idx}" value="중" checked/> 중</label>
+            <label class="radioItem"><input type="radio" name="l_${idx}" value="하"/> 하</label>
+          </div>
+        </td>
+            <td class="delCell"><button type="button" class="stuDelBtn" data-action="delStudentRow" aria-label="학생 삭제">🗑️</button></td>
+    `;
+    studentsTbody.appendChild(tr);
+    }
+  }
+
+  function getStudentsTableRows(){
+    if(!studentsTbody) return [];
+    return Array.from(studentsTbody.querySelectorAll("tr"));
+  }
+
+  function renumberStudentsRows(){
+    const rows = getStudentsTableRows();
+    rows.forEach((tr, i) => {
+      const idx = i+1;
+      const noCell = tr.querySelector(".rowNo");
+      if(noCell) noCell.textContent = `${idx}.`;
+
+      // 라디오 name도 재번호(행 추가/삭제 대비)
+      tr.querySelectorAll('input[type="radio"]').forEach((r) => {
+        const el = r;
+        if(!(el instanceof HTMLInputElement)) return;
+        if(el.name && el.name.startsWith("g_")) el.name = `g_${idx}`;
+        if(el.name && el.name.startsWith("l_")) el.name = `l_${idx}`;
+      });
+    });
+  }
+
+  function addOneStudentRow(){
+    if(!studentsTbody) return;
+    const rows = getStudentsTableRows();
+    const idx = rows.length + 1;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="rowNo">${idx}.</td>
+      <td><input type="text" class="stuName" placeholder="이름" autocomplete="off" autocapitalize="off" spellcheck="false"/></td>
+      <td class="genderCell">
+        <div class="radioGroup" role="radiogroup" aria-label="성별">
+          <label class="radioItem"><input type="radio" name="g_${idx}" value="남" checked/> 남</label>
+          <label class="radioItem"><input type="radio" name="g_${idx}" value="여"/> 여</label>
+        </div>
+      </td>
+      <td class="levelCell">
+        <div class="radioGroup" role="radiogroup" aria-label="학습 수준">
+          <label class="radioItem"><input type="radio" name="l_${idx}" value="상"/> 상</label>
+          <label class="radioItem"><input type="radio" name="l_${idx}" value="중" checked/> 중</label>
+          <label class="radioItem"><input type="radio" name="l_${idx}" value="하"/> 하</label>
+        </div>
+      </td>
+    `;
+    studentsTbody.appendChild(tr);
+    studentsSetVisibility();
+    const inp = tr.querySelector(".stuName");
+    inp && inp.focus();
+  }
+
+  function rowSelectedValue(tr, namePrefix){
+    const el = tr.querySelector(`input[type="radio"][name^="${namePrefix}_"]:checked`);
+    if(el && el instanceof HTMLInputElement) return (el.value||"").trim();
+    return "";
+  }
+  function setRowRadioValue(tr, namePrefix, value){
+    const radios = tr.querySelectorAll(`input[type="radio"][name^="${namePrefix}_"]`);
+    radios.forEach((r)=>{
+      const el = r;
+      if(el instanceof HTMLInputElement){
+        el.checked = (el.value === value);
+      }
+    });
+  }
+
+  function tableToStudentsText(){
+    const rows = getStudentsTableRows();
+    const useGender = !!(useGenderToggle && useGenderToggle.checked);
+    const useLevel = !!(useLevelToggle && useLevelToggle.checked);
+    const out = [];
+    for(const tr of rows){
+      const name = (tr.querySelector(".stuName")?.value || "").trim();
+      if(!name) continue;
+
+      const parts = [name];
+      if(useGender){
+        const g = rowSelectedValue(tr, "g") || "남";
+        parts.push(g);
+      }
+      if(useLevel){
+        const lv = rowSelectedValue(tr, "l") || "중";
+        parts.push(lv);
+      }
+      out.push(parts.join(" "));
+    }
+    return out.join("\n");
+  }
+
+  function studentsTextToTable(){
+    studentsInitPhase = true;
+    const students = parseStudents(studentsInput ? studentsInput.value : "");
+    const showGender = students.some(s => s.gender && s.gender !== "A");
+    const showLevel = students.some(s => !!s.level);
+    if(useGenderToggle) useGenderToggle.checked = showGender;
+    if(useLevelToggle) useLevelToggle.checked = showLevel;
+    studentsSetVisibility();
+
+    const rowCount = Math.max(20, students.length || 0);
+    buildStudentsRows(rowCount);
+
+    const rows = getStudentsTableRows();
+    students.forEach((s, i) => {
+      const tr = rows[i];
+      if(!tr) return;
+      const nameEl = tr.querySelector(".stuName");
+      if(nameEl) nameEl.value = s.name || "";
+
+      if(s.gender === "M") setRowRadioValue(tr, "g", "남");
+      else if(s.gender === "F") setRowRadioValue(tr, "g", "여");
+      else setRowRadioValue(tr, "g", "남"); // 기본
+
+      if(s.level === "상") setRowRadioValue(tr, "l", "상");
+      else if(s.level === "하") setRowRadioValue(tr, "l", "하");
+      else setRowRadioValue(tr, "l", "중"); // 기본
+    });
+    studentsInitPhase = false;
+  }
+
+  function initStudentsModalUI(){
+    if(!studentsInput || !studentsTbody) return;
+
+    if((studentsInput.value || "").trim()){
+      studentsTextToTable();
+    }else{
+      if(useGenderToggle) useGenderToggle.checked = false;
+      if(useLevelToggle) useLevelToggle.checked = false;
+      studentsSetVisibility();
+      buildStudentsRows(20);
+    }
+
+    studentsSetVisibility();
+
+    // IME(한글) 입력 안전: 조합 중 Enter는 건드리지 않기
+    let composing = false;
+    studentsTbody.oncompositionstart = () => { composing = true; };
+    studentsTbody.oncompositionend = () => { composing = false; };
+
+    studentsTbody.onkeydown = (e) => {
+      if(e.key === "Enter"){
+        if(e.isComposing || composing) return;
+        const target = e.target;
+        if(!(target instanceof HTMLElement)) return;
+        if(target.classList.contains("stuName")){
+          e.preventDefault();
+          const tr = target.closest("tr");
+          const rows = getStudentsTableRows();
+          const idx = rows.indexOf(tr);
+          // 조합 완료 이후 이동(마지막 글자 복제 버그 방지)
+          setTimeout(() => {
+            const next = rows[idx+1]?.querySelector(".stuName");
+            if(next) next.focus();
+            else addOneStudentRow();
+          }, 0);
+        }
+      }
+    };
+  }
+
+  function applyGenderBulk(){
+    if(!useGenderToggle || !useGenderToggle.checked) return;
+    const checked = studentsModal?.querySelector('input[type="radio"][name="bulkGender"]:checked');
+    const val = (checked && checked instanceof HTMLInputElement) ? checked.value : "남";
+    const rows = getStudentsTableRows();
+    for(const tr of rows){
+      const name = (tr.querySelector(".stuName")?.value || "").trim();
+      if(!name) continue;
+      setRowRadioValue(tr, "g", val);
+    }
+    toast("성별을 일괄 적용했어요!");
+  }
+
   function parseForbidden(text) {
     // 한 줄에 2명 또는 여러 명을 쉼표(,)로 연결하면 모두 인접 금지로 처리합니다.
     // 예) A, B, C  => (A-B), (A-C), (B-C) 모두 금지
@@ -343,19 +1103,39 @@ function parseStudents(text) {
     const mode = groupMode.value;
     if (mode === "none") return;
 
+    // 수동 모둠 변경 이후에는 자동 그룹핑으로 다른 좌석이 움직이지 않도록 함
+    if (autoGroupFrozen) return;
+
     const size = Number(mode);
     if (!size) return;
 
     // ✅ void 제외 + 수동 지정된 좌석은 자동 그룹핑으로 덮어쓰지 않음
-    const activeIds = seats
-      .filter((s) => !s.void && !s.groupManual)
-      .map((s) => s.id)
-      .sort((a, b) => a - b);
-    for (let i = 0; i < activeIds.length; i++) {
-      const gid = clamp(Math.floor(i / size) + 1, 1, 8);
-      const s = getSeat(activeIds[i]);
-      if (s) s.groupId = gid;
-    }
+// v0.82: 세로줄(열 우선) 기준으로 모둠 자동 지정
+// - 좌석을 (열 -> 행) 순서로 훑어서, 같은 열의 위/아래가 먼저 같은 모둠이 되도록 한다.
+const activeSet = new Set(
+  seats
+    .filter((s) => !s.void && !s.groupManual)
+    .map((s) => s.id)
+);
+
+const orderedIds = [];
+for (let c = 0; c < cols; c++) {
+  for (let r = 0; r < rows; r++) {
+    const id = r * cols + c;
+    if (activeSet.has(id)) orderedIds.push(id);
+  }
+}
+
+let gidCounter = 1;
+for (let i = 0; i < orderedIds.length; i += size) {
+  const gid = clamp(gidCounter, 1, 8);
+  const chunk = orderedIds.slice(i, i + size);
+  for (const id of chunk) {
+    const s = getSeat(id);
+    if (s) s.groupId = gid;
+  }
+  gidCounter = gidCounter % 8 + 1;
+}
   }
 
   function setAccordionVisibility(kind) {
@@ -749,7 +1529,8 @@ function parseStudents(text) {
 
       if (!isPair) {
         for (let c = 0; c < cols; c++) {
-          const seatId = dataRow * cols + c;
+          const dataCol = mapDisplayColToDataCol(c);
+          const seatId = dataRow * cols + dataCol;
           const seat = getSeat(seatId);
           if (!seat) continue;
           gridEl.appendChild(makeSeatDiv(seat, vioSet));
@@ -761,7 +1542,8 @@ function parseStudents(text) {
       for (let g = 0; g < pc; g++) {
         for (let k = 0; k < 2; k++) {
           const c = g * 2 + k;
-          const seatId = dataRow * cols + c;
+          const dataCol = mapDisplayColToDataCol(c);
+          const seatId = dataRow * cols + dataCol;
           const seat = getSeat(seatId);
           if (!seat) continue;
           gridEl.appendChild(makeSeatDiv(seat, vioSet));
@@ -849,7 +1631,7 @@ function parseStudents(text) {
     div.appendChild(action);
 
     // ✅ 모둠 태그: showGroups 체크면 항상 표시(통로 제외)
-    if (showGroups && showGroups.checked && !seat.void) {
+    if (showGroups && showGroups.checked && !seat.void && uiMode !== "gender" && uiMode !== "pin") {
       div.appendChild(makeGroupTag(seat));
     }
 
@@ -992,9 +1774,136 @@ function parseStudents(text) {
     if (forbiddenInput) forbiddenInput.disabled = !forbidOn;
     if (includeDiagonal) includeDiagonal.disabled = !forbidOn;
 
+    // 금지쌍 그룹 UI 비활성 처리
+    if (optionsModal) {
+      optionsModal.classList.toggle("forbidDisabled", !forbidOn);
+    }
+
     const rotOn = (!useRotation) || useRotation.checked;
     if (rotateFront) rotateFront.disabled = !rotOn;
     if (rotateBack) rotateBack.disabled = !rotOn;
+
+    const balanceEl = document.getElementById("balanceLevels");
+    const groupModeEl = document.getElementById("groupMode");
+    const balanceOn = !!(balanceEl && balanceEl.checked);
+    if (groupModeEl) groupModeEl.disabled = !balanceOn;
+    if (optionsModal) {
+      optionsModal.classList.toggle("balanceDisabled", !balanceOn);
+    }
+
+  }
+
+  // ===== 세부 옵션: 금지쌍 그룹 UI =====
+  let forbidGroupCount = 0;
+
+  function parseForbiddenLine(line) {
+    return String(line || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  function createForbidNameInput(value = "") {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "이름";
+    input.value = value;
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.addEventListener("input", () => {
+      // 입력 중에도 즉시 반영
+      syncForbiddenTextareaFromGroups(true);
+    });
+    return input;
+  }
+
+  function createForbidGroupRow(initialNames = []) {
+    forbidGroupCount += 1;
+    const idx = forbidGroupCount;
+
+    const row = document.createElement("div");
+    row.className = "forbidGroupRow";
+    row.dataset.groupIndex = String(idx);
+
+    const label = document.createElement("span");
+    label.className = "forbidGroupLabel";
+    label.textContent = `그룹 ${idx} :`;
+
+    const inputs = document.createElement("div");
+    inputs.className = "forbidInputs";
+
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "ghost smallBtn addForbidMemberBtn";
+    addBtn.textContent = "+";
+    addBtn.title = "이름 입력칸 추가";
+    addBtn.addEventListener("click", () => {
+      const inp = createForbidNameInput("");
+      inputs.appendChild(inp);
+      inp.focus();
+      syncForbiddenTextareaFromGroups(true);
+    });
+
+    const baseCount = Math.max(3, initialNames.length || 0);
+    for (let i = 0; i < baseCount; i++) {
+      const v = initialNames[i] || "";
+      inputs.appendChild(createForbidNameInput(v));
+    }
+
+    row.appendChild(label);
+    row.appendChild(inputs);
+    row.appendChild(addBtn);
+    return row;
+  }
+
+  function readGroupsFromTextarea() {
+    const raw = forbiddenInput ? forbiddenInput.value : "";
+    const lines = String(raw || "")
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    return lines.map(parseForbiddenLine).filter((arr) => arr.length > 0);
+  }
+
+  function renderForbiddenGroupsFromTextarea() {
+    if (!forbiddenGroupsContainer) return;
+    forbiddenGroupsContainer.innerHTML = "";
+    forbidGroupCount = 0;
+
+    const groups = readGroupsFromTextarea();
+    // 기본은 그룹1, 그룹2
+    const want = Math.max(2, groups.length);
+    for (let i = 0; i < want; i++) {
+      const names = groups[i] || [];
+      forbiddenGroupsContainer.appendChild(createForbidGroupRow(names));
+    }
+  }
+
+  function collectGroupsFromUI() {
+    if (!forbiddenGroupsContainer) return [];
+    const rows = Array.from(forbiddenGroupsContainer.querySelectorAll(".forbidGroupRow"));
+    const out = [];
+    for (const r of rows) {
+      const inputs = Array.from(r.querySelectorAll("input"));
+      const names = inputs.map((i) => String(i.value || "").trim()).filter(Boolean);
+      out.push(names);
+    }
+    return out;
+  }
+
+  function syncForbiddenTextareaFromGroups(recompute = false) {
+    if (!forbiddenInput) return;
+    const groups = collectGroupsFromUI();
+    const lines = groups
+      .map((names) => names.filter(Boolean))
+      .filter((names) => names.length >= 2)
+      .map((names) => names.join(", "));
+    forbiddenInput.value = lines.join("\n");
+    if (recompute) {
+      syncOptionEnables();
+      computeViolations();
+      renderGrid();
+    }
   }
 
   function ensureShowGroupsForBalance(){
@@ -1003,7 +1912,6 @@ function parseStudents(text) {
       showGroups.checked = true;
     }
   }
-
 
   // ===== Actions =====
   function togglePin(seat) {
@@ -1017,9 +1925,23 @@ function parseStudents(text) {
       return;
     }
 
-    // 고정은 학생이 있는 자리만
+    // 고정은 학생이 있는 자리만 (v0.79: 빈 좌석이면 이름 입력 후 고정 허용)
     if (!seat.name) {
-      toast("학생이 지정된 자리만 고정할 수 있어요.");
+      const input = prompt("이 좌석에 고정할 학생 이름을 입력하세요.");
+      const name = (input || "").trim();
+      if (!name) return;
+    
+      // 이미 다른 좌석에 같은 이름이 있으면 중복 방지
+      const dup = seats.some((s) => s && s.id !== seat.id && s.name === name && !s.void);
+      if (dup) {
+        toast("이미 다른 좌석에 같은 이름이 있어요. 이름을 확인해 주세요.");
+        return;
+      }
+    
+      seat.name = name;
+      seat.locked = true;
+      renderGrid();
+      log(`좌석 고정(직접입력): ${seat.name} (좌석 ${seat.id + 1})`);
       return;
     }
     seat.locked = true;
@@ -1112,10 +2034,19 @@ function parseStudents(text) {
       const seat = getSeat(id);
       if (seat && seat.void) return; // 통로는 드래그 이동 의미 없음
 
+      seatDiv.classList.add("dragging");
       dragSrcId = id;
       if (e.dataTransfer) {
         e.dataTransfer.setData("text/plain", String(id));
         e.dataTransfer.effectAllowed = "move";
+      }
+    });
+
+    gridEl.addEventListener("dragend", (e) => {
+      const seatDiv = e.target.closest(".seat");
+      if (seatDiv) {
+        seatDiv.classList.remove("dragging");
+        seatDiv.classList.remove("dragOver");
       }
     });
 
@@ -1124,6 +2055,11 @@ function parseStudents(text) {
       if (uiMode !== "none") return;
       e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+      const overSeat = e.target.closest(".seat");
+      if (overSeat) {
+        gridEl.querySelectorAll(".seat.dragOver").forEach((x)=>x.classList.remove("dragOver"));
+        overSeat.classList.add("dragOver");
+      }
     });
 
     gridEl.addEventListener("drop", (e) => {
@@ -1143,6 +2079,8 @@ function parseStudents(text) {
 
       if (Number.isNaN(srcId) || Number.isNaN(dstId) || srcId === dstId) return;
 
+      gridEl.querySelectorAll(".seat.dragOver").forEach((x)=>x.classList.remove("dragOver"));
+
       if (!swapSeatState(srcId, dstId)) return;
 
       selectedSeatId = null;
@@ -1151,8 +2089,167 @@ function parseStudents(text) {
       log(`이동/교체: 좌석 ${srcId + 1} ↔ 좌석 ${dstId + 1}`);
     });
 
+
+    // ===== Mobile pointer drag (move/swap) =====
+    // ✅ 스크롤을 막지 않도록: 실제 드래그로 판정되기 전에는 preventDefault / pointerCapture를 하지 않음
+    let touchDrag = null; // { id, seatDiv, pointerId, startX, startY, moved, dx, dy, overId }
+    const DRAG_THRESHOLD = 8;
+
+    const resetTouchDragVisual = () => {
+      if (!touchDrag) return;
+      if (touchDrag._armT) { try { clearTimeout(touchDrag._armT); } catch {} }
+      const el = touchDrag.seatDiv;
+      if (el) {
+        el.classList.remove("dragging");
+        el.style.transform = "";
+        el.style.zIndex = "";
+        el.style.transition = "";
+        el.style.pointerEvents = "";
+      }
+      gridEl.querySelectorAll(".seat.dragOver").forEach((x)=>x.classList.remove("dragOver"));
+      touchDrag = null;
+    };
+
+    const getSeatIdFromEl = (el) => {
+      const d = el?.closest?.(".seat");
+      if (!d) return null;
+      const id = Number(d.dataset.seatId);
+      return Number.isNaN(id) ? null : id;
+    };
+
+    let _suppressNextClickUntil = 0;
+    gridEl.addEventListener("pointerdown", (e) => {
+      if (!isTouchLike()) return;
+      if (uiMode !== "none") return;
+
+      const seatDiv = e.target.closest(".seat");
+      if (!seatDiv) return;
+
+      // 아이콘(삭제/핀/모둠/성별)은 클릭 우선
+      if (e.target.closest("[data-action]")) return;
+
+      const id = Number(seatDiv.dataset.seatId);
+      if (Number.isNaN(id)) return;
+      const seat = getSeat(id);
+      if (seat && seat.void) return;
+
+      // ✅ 드래그 후보만 설정(스크롤 가능) + 롱프레스(약 180ms) 시 드래그 허용
+      touchDrag = { id, seatDiv, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, moved: false, dx: 0, dy: 0, overId: null, armed: false, _armT: null };
+
+      // 손가락이 살짝 움직이며 스크롤하려는 경우를 우선: 롱프레스 후에만 자유 드래그
+      touchDrag._armT = setTimeout(() => {
+        if (touchDrag && touchDrag.pointerId === e.pointerId) touchDrag.armed = true;
+      }, 180);
+    });
+
+    gridEl.addEventListener("pointermove", (e) => {
+      if (!isTouchLike()) return;
+      if (!touchDrag) return;
+
+      const el = touchDrag.seatDiv;
+      const dx = e.clientX - touchDrag.startX;
+      const dy = e.clientY - touchDrag.startY;
+      touchDrag.dx = dx; touchDrag.dy = dy;
+
+      if (!touchDrag.moved) {
+        // ✅ 아직 드래그로 확정 전이면 스크롤을 방해하지 않음
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+
+        // ✅ 세로 스와이프는 스크롤로 해석(롱프레스 전에는 드래그 시작 안 함)
+        const adx = Math.abs(dx), ady = Math.abs(dy);
+        if (!touchDrag.armed && ady > adx * 1.2) {
+          // 스크롤 의도: 드래그 취소하고 기본 스크롤 허용
+          resetTouchDragVisual();
+          return;
+        }
+
+        touchDrag.moved = true;
+        // 드래그 확정: 이제부터만 캡처/비주얼/기본동작 차단
+        try { el?.setPointerCapture?.(touchDrag.pointerId); } catch {}
+        if (el) {
+          el.classList.add("dragging");
+          el.style.transition = "none";
+          el.style.zIndex = "60";
+          // 드래그 중에는 아래 요소를 찾기 위해 포인터 이벤트를 잠시 끔
+          el.style.pointerEvents = "none";
+        }
+      }
+
+      if (el) {
+        el.style.transform = `translate(${dx}px, ${dy}px) scale(1.03)`;
+      }
+
+      // 드롭 대상 하이라이트
+      const under = document.elementFromPoint(e.clientX, e.clientY);
+      const overId = getSeatIdFromEl(under);
+      gridEl.querySelectorAll(".seat.dragOver").forEach((x)=>x.classList.remove("dragOver"));
+      if (overId != null && overId !== touchDrag.id) {
+        const overEl = gridEl.querySelector(`.seat[data-seat-id="${overId}"]`);
+        if (overEl) overEl.classList.add("dragOver");
+        touchDrag.overId = overId;
+      } else {
+        touchDrag.overId = null;
+      }
+
+      // ✅ 드래그 중에만 기본 스크롤/줌을 막음
+      if (touchDrag.moved) e.preventDefault();
+    });
+
+    const finishTouchDrag = (e) => {
+      if (!isTouchLike()) return;
+      if (!touchDrag) return;
+
+      const { id, moved, overId } = touchDrag;
+      const el = touchDrag.seatDiv;
+
+      // 복원
+      if (el) el.style.pointerEvents = "";
+      const didMove = moved && (Math.abs(touchDrag.dx) > DRAG_THRESHOLD || Math.abs(touchDrag.dy) > DRAG_THRESHOLD);
+
+      if (didMove && overId != null && overId !== id) {
+        swapSeatState(id, overId);
+        selectedSeatId = null;
+        closeGroupMenu();
+        computeViolations();
+        renderGrid();
+        log(`드래그 교체: 좌석 ${id + 1} ↔ 좌석 ${overId + 1}`);
+        resetTouchDragVisual();
+        return;
+      }
+
+      // 드래그가 아니라면: 탭 선택/탭-탭 교체(기존 UX)
+      if (!didMove) {
+        if (selectedSeatId != null && selectedSeatId !== id) {
+          const fromId = selectedSeatId;
+          swapSeatState(fromId, id);
+          selectedSeatId = null;
+          closeGroupMenu();
+          computeViolations();
+          renderGrid();
+          log(`좌석 교체: 좌석 ${fromId + 1} ↔ 좌석 ${id + 1}`);
+        } else {
+          selectedSeatId = (selectedSeatId === id) ? null : id;
+          closeGroupMenu();
+          renderGrid();
+        }
+      }
+
+      resetTouchDragVisual();
+      // ✅ 탭/드래그 처리 후 클릭 이벤트 중복 방지
+      _suppressNextClickUntil = Date.now() + 500;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    gridEl.addEventListener("pointerup", finishTouchDrag);
+    gridEl.addEventListener("pointercancel", finishTouchDrag);
+
     // 클릭 처리(모드/아이콘/모둠 메뉴)
     gridEl.addEventListener("click", (e) => {
+      if (isTouchLike() && Date.now() < _suppressNextClickUntil) {
+        // 터치에서 pointerup 처리와 click이 중복되며 UI가 두 번 바뀌는 것을 방지
+        if (!e.target.closest("[data-action]")) return;
+      }
       const seatDiv = e.target.closest(".seat");
       if (!seatDiv) return;
 
@@ -1279,6 +2376,8 @@ function parseStudents(text) {
 
   // ===== Group Menu (fixed, not clipped) =====
   const groupMenuState = { open: false, seatId: null };
+  // 사용자가 모둠을 수동으로 변경한 이후에는 자동 모둠 재계산으로 다른 좌석이 변하지 않도록 동결
+  let autoGroupFrozen = false;
 
   function buildGroupMenuItems(currentGid) {
     if (!groupMenuEl) return;
@@ -1311,6 +2410,7 @@ function parseStudents(text) {
         if (!seat) return;
         seat.groupId = i;
         seat.groupManual = true;
+        autoGroupFrozen = true;
         closeGroupMenu();
         renderGrid();
         log(`모둠 변경: 좌석 ${seat.id + 1} → 모둠 ${i}`);
@@ -1401,6 +2501,15 @@ function parseStudents(text) {
     uiMode = "none";
     selectedSeatId = null;
 
+
+    // 학생 입력 표(UI)가 존재하면, 저장 버튼을 누르지 않았더라도 최신 입력값을 반영
+    try {
+      if (studentsInput && studentsTbody) {
+        studentsInput.value = tableToStudentsText();
+        normalizeStudentsInput();
+      }
+    } catch(e) {}
+
     const students = parseStudents(studentsInput ? studentsInput.value : "");
     if (students.length === 0) {
       toast("학생 명단이 비어 있어요.");
@@ -1410,6 +2519,7 @@ function parseStudents(text) {
     students.forEach((s) => ensureHistoryFor(s.name));
 
     const nameToGender = new Map(students.map((s) => [s.name, s.gender]));
+    const nameToLevel  = new Map(students.map((s) => [s.name, s.level]));
 
     // 고정된 학생(이름)은 항상 유지
     const lockedNames = new Set();
@@ -1461,6 +2571,61 @@ function parseStudents(text) {
       return cost;
     };
 
+    const genderCost = (seatToName) => {
+      let c = 0;
+      for (const id of activeSeatIds) {
+        const seat = getSeat(id);
+        if (!seat || seat.void) continue;
+        const req = seat.seatGender ?? "A";
+        if (req === "A") continue;
+        const nm = seatToName[id];
+        if (!nm) continue;
+        const g = nameToGender.get(nm) || "A";
+        // req(M/F)와 다른 성별이면 페널티 (미지정 A는 허용)
+        if (g !== "A" && g !== req) c += 1;
+      }
+      return c;
+    };
+
+    const levelBalanceCost = (seatToName) => {
+      if (!(balanceLevels && balanceLevels.checked)) return 0;
+      // 그룹별 수준(상/하) 분산을 최대한 균등하게 맞추는 비용
+      const groupIds = Array.from(new Set(activeSeatIds.map(id => (getSeat(id)?.groupId ?? 1)))).sort((a,b)=>a-b);
+      const G = groupIds.length || 1;
+      const total = { "상": 0, "중": 0, "하": 0 };
+      const perGroup = new Map(groupIds.map(gid => [gid, { "상": 0, "중": 0, "하": 0 }]));
+      for (const id of activeSeatIds) {
+        const seat = getSeat(id);
+        if (!seat || seat.void) continue;
+        const gid = seat.groupId ?? 1;
+        const nm = seatToName[id];
+        if (!nm) continue;
+        const lv = (nameToLevel.get(nm) || "중");
+        const L = (lv === "상" || lv === "하") ? lv : "중";
+        total[L] += 1;
+        if (!perGroup.has(gid)) perGroup.set(gid, { "상":0,"중":0,"하":0 });
+        perGroup.get(gid)[L] += 1;
+      }
+      const targetHigh = total["상"] / G;
+      const targetLow  = total["하"] / G;
+
+      let cost = 0;
+      for (const gid of groupIds) {
+        const c = perGroup.get(gid) || { "상":0,"중":0,"하":0 };
+        cost += Math.abs(c["상"] - targetHigh) + Math.abs(c["하"] - targetLow);
+      }
+      return cost;
+    };
+
+    const totalCost = (seatToName) => {
+      // 성별 불일치는 강하게, 금지쌍 위반은 그 다음, 수준 분산은 약하게
+      const g = genderCost(seatToName);
+      const f = forbiddenCost(seatToName);
+      const l = levelBalanceCost(seatToName);
+      return g * 10000 + f * 100 + l * 10;
+    };
+
+
     const makeInitialAssignment = () => {
       const seatToName = Array.from({ length: seatCount() }, () => null);
 
@@ -1504,11 +2669,12 @@ function parseStudents(text) {
     const improveBySwaps = (seed) => {
       // 랜덤 스왑 힐클라임(빠르고 안정적)
       let cur = seed.slice();
-      let curCost = forbiddenCost(cur);
+      let curCost = totalCost(cur);
       let best = cur.slice();
       let bestCost = curCost;
 
-      const steps = forbiddenPairs.length > 0 ? 900 : 0;
+      const needOptimize = (forbiddenPairs.length > 0) || (activeSeatIds.some(id => (getSeat(id)?.seatGender ?? 'A') !== 'A')) || (balanceLevels && balanceLevels.checked);
+      const steps = needOptimize ? 1100 : 0;
       for (let step = 0; step < steps; step++) {
         if (curCost === 0) break;
 
@@ -1521,7 +2687,7 @@ function parseStudents(text) {
         cur[a] = cur[b];
         cur[b] = tmp;
 
-        const newCost = forbiddenCost(cur);
+        const newCost = totalCost(cur);
         const accept = newCost <= curCost || Math.random() < 0.02;
 
         if (accept) {
@@ -1544,16 +2710,27 @@ function parseStudents(text) {
 
     // --- 메인 탐색 ---
     let bestGlobal = null;
-    let bestGlobalCost = Infinity;
+    let bestGlobalTotal = Infinity;
+    let bestGlobalForbidden = Infinity;
+    let bestGlobalGender = Infinity;
+    let bestGlobalLevel = Infinity;
 
-    const attempts = forbiddenPairs.length > 0 ? 50 : 1;
+    const attempts = (forbiddenPairs.length > 0) || (balanceLevels && balanceLevels.checked) || (activeSeatIds.some(id => (getSeat(id)?.seatGender ?? 'A') !== 'A')) ? 60 : 1;
     for (let t = 0; t < attempts; t++) {
       const seed = makeInitialAssignment();
       const { best, bestCost } = improveBySwaps(seed);
-      if (bestCost < bestGlobalCost) {
-        bestGlobalCost = bestCost;
+
+      const fCost = forbiddenCost(best);
+      const gCost = genderCost(best);
+      const lCost = levelBalanceCost(best);
+
+      if (bestCost < bestGlobalTotal) {
+        bestGlobalTotal = bestCost;
         bestGlobal = best;
-        if (bestGlobalCost === 0) break;
+        bestGlobalForbidden = fCost;
+        bestGlobalGender = gCost;
+        bestGlobalLevel = lCost;
+        if (bestGlobalTotal === 0) break;
       }
     }
 
@@ -1572,10 +2749,32 @@ function parseStudents(text) {
     syncOptionEnables();
     computeViolations();
     renderGrid();
-    updateRotationCounts();
+    /* rotation 기록은 이제 '배치도 저장' 시에만 반영됩니다. */
 
-    if (forbiddenPairs.length > 0 && bestGlobalCost > 0) {
-      toast(`금지 조건을 모두 만족시키기 어려워요(남은 위반 ${bestGlobalCost}건).`);
+    if (forbiddenPairs.length > 0 && bestGlobalForbidden > 0) {
+      toast(`금지 조건을 모두 만족시키기 어려워요(남은 위반 ${bestGlobalForbidden}건).`);
+    }
+    if (bestGlobalGender > 0) {
+      // 왜 못 맞췄는지(좌석 성별 지정 vs 학생 성별 구성) 간단 안내
+      let reason = "";
+      try {
+        const active = seats.filter(s => s && !s.void);
+        const maleSeats = active.filter(s => (s.seatGender ?? "A") === "M").length;
+        const femaleSeats = active.filter(s => (s.seatGender ?? "A") === "F").length;
+        const anySeats = active.filter(s => (s.seatGender ?? "A") === "A").length;
+
+        const maleStudents = students.filter(s => s.gender === "M").length;
+        const femaleStudents = students.filter(s => s.gender === "F").length;
+        const unknownStudents = Math.max(0, students.length - maleStudents - femaleStudents);
+
+        if (maleStudents > maleSeats + anySeats) reason = `남학생(${maleStudents})이 남좌석(${maleSeats})보다 많아요.`;
+        else if (femaleStudents > femaleSeats + anySeats) reason = `여학생(${femaleStudents})이 여좌석(${femaleSeats})보다 많아요.`;
+        else if (maleSeats > maleStudents + unknownStudents) reason = `남좌석(${maleSeats})이 남학생(${maleStudents})보다 많아요.`;
+        else if (femaleSeats > femaleStudents + unknownStudents) reason = `여좌석(${femaleSeats})이 여학생(${femaleStudents})보다 많아요.`;
+        else reason = "지정된 성별 좌석과 학생 성별 구성이 정확히 맞지 않아요.";
+      } catch(e) {}
+
+      toast(`성별 지정 조건을 모두 만족시키기 어려워요(불일치 ${bestGlobalGender}명).${reason ? " " + reason : ""}`);
     }
     log("자동 배치 완료 ✅");
   }
@@ -1607,7 +2806,12 @@ function parseStudents(text) {
   });
 
   if (autoFillBtn) autoFillBtn.addEventListener("click", autoFill);
-  if (clearBtn) clearBtn.addEventListener("click", clearAll);
+  if (clearBtn) clearBtn.addEventListener("click", () => {
+    const ok = window.confirm("정말 초기화할까요?\n배치도/학생/옵션이 초기화됩니다.");
+    if (!ok) return;
+    clearAll();
+    toast("초기화되었습니다.");
+  });
   if (restoreVoidsBtn) restoreVoidsBtn.addEventListener("click", restoreVoids);
 
   if (showSeatNo) showSeatNo.addEventListener("change", renderGrid);
@@ -1615,6 +2819,8 @@ function parseStudents(text) {
   if (showGender) showGender.addEventListener("change", renderGrid);
 
   if (groupMode) groupMode.addEventListener("change", () => {
+    // 사용자가 드롭다운으로 모둠 크기를 다시 선택하면 자동 그룹핑을 다시 허용
+    autoGroupFrozen = false;
     // ✅ 자동 모둠표기 모드를 바꾸면(=재계산 의도) 기존 수동 지정은 초기화
     if (groupMode.value !== "none") {
       seats.forEach((s) => { if (s && !s.void) s.groupManual = false; });
@@ -1629,8 +2835,13 @@ function parseStudents(text) {
   });
 
   if (resetHistoryBtn) resetHistoryBtn.addEventListener("click", () => {
+    const ok = window.confirm("정말 저장된 모든 배치도의 로테이션 기록을 초기화할까요?\n(이 작업은 되돌릴 수 없어요.)");
+    if (!ok) return;
+
+    try { localStorage.removeItem(ROTATION_LEDGER_KEY); } catch {}
     history = {};
-    log("로테이션 기록 초기화 완료.");
+    log("로테이션 기록(저장 배치도 기준) 초기화 완료.");
+    toast("로테이션 기록이 초기화되었습니다.");
   });
 
   if (toggleOrientationBtn) toggleOrientationBtn.addEventListener("click", () => {
@@ -1643,13 +2854,114 @@ function parseStudents(text) {
     log(boardAtTop ? "방향 변경: 칠판 위" : "방향 변경: 칠판 아래 — 좌석 상하 반전 + 칠판 위치 이동");
   });
 
-  if (openStudentsBtn) openStudentsBtn.addEventListener("click", () => openModal(studentsModal));
-  if (applyStudentsBtn) applyStudentsBtn.addEventListener("click", () => {
-    normalizeStudentsInput();
-    closeModal(studentsModal);
-    toast("적용됐어요!");
-    log("학생 명단 적용");
+  // ✅ PC: 배치도 영역 위에 마우스가 있어도 페이지 위/아래 스크롤이 되도록
+  // - .stage가 overflow:auto + overscroll-behavior로 스크롤 체이닝이 막히는 경우가 있어,
+  //   wheel(세로) 입력은 페이지 스크롤로 우선 처리한다.
+  if (stageEl) {
+    stageEl.addEventListener(
+      "wheel",
+      (e) => {
+        const dy = e.deltaY || 0;
+        const dx = e.deltaX || 0;
+        const vertical = Math.abs(dy) >= Math.abs(dx);
+        if (vertical && !e.shiftKey) {
+          // 세로 휠은 페이지 스크롤로 넘김(배치도 내부 세로 스크롤 방지)
+          e.preventDefault();
+          window.scrollBy({ top: dy, left: 0, behavior: "auto" });
+        }
+      },
+      { passive: false }
+    );
+  }
+
+  if (openStudentsBtn) openStudentsBtn.addEventListener("click", () => { openModal(studentsModal); initStudentsModalUI(); });
+
+  // 학생 입력 저장: 클릭 이벤트가 누락되거나 초기화 중 에러가 나도 동작하도록(직접 바인딩 + 위임 바인딩)
+  
+  // 학생 입력 저장 직전 라인 정리(스코프 안전)
+  function normalizeStudentsInput(){
+    if (!studentsInput) return;
+    studentsInput.value = normalizeLines(studentsInput.value);
+  }
+
+let _savingStudentsNow = false;
+  function handleStudentsSave(btnEl){
+    if (_savingStudentsNow) return;
+    _savingStudentsNow = true;
+
+    // Identify the actual button element that triggered save (important for reliable feedback)
+    const btn = btnEl || applyStudentsBtn;
+
+    try {
+      // 표 → 텍스트로 직렬화(기존 로직/저장/공유/자동배치 호환)
+      if (studentsInput && studentsTbody) {
+        studentsInput.value = tableToStudentsText();
+        normalizeStudentsInput();
+      }
+
+      // Reliable, non-overlay feedback (do NOT auto-close; user closes manually)
+      if (btn) {
+        const prevText = btn.textContent;
+        btn.textContent = "저장됨 ✓";
+        btn.classList.add("btn-success-flash");
+        btn.disabled = true;
+
+        // Ensure paint happens, then restore state (keep modal open)
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              btn.textContent = prevText;
+              btn.classList.remove("btn-success-flash");
+              btn.disabled = false;
+              _savingStudentsNow = false;
+            }, 900);
+          });
+        });
+      } else {
+        _savingStudentsNow = false;
+      }
+
+      log("학생 명단 저장");
+    } catch (err) {
+      _savingStudentsNow = false;
+      throw err;
+    }
+  }
+  if (applyStudentsBtn) applyStudentsBtn.addEventListener("click", (e) => handleStudentsSave(e.currentTarget));
+  document.addEventListener("click", (e) => {
+    const t = e.target && e.target.closest ? e.target.closest("#applyStudentsBtn") : null;
+    if (t) handleStudentsSave(t);
   });
+  // 학생 입력 UI 이벤트(v0.79)
+  if (useGenderToggle) useGenderToggle.addEventListener("change", () => {
+    studentsSetVisibility();
+  });
+  if (useLevelToggle) useLevelToggle.addEventListener("change", () => {
+    studentsSetVisibility();
+  });
+  if (applyGenderBulkBtn) applyGenderBulkBtn.addEventListener("click", applyGenderBulk);
+  if (addStudentRowBtn) addStudentRowBtn.addEventListener("click", () => { addOneStudentRow(); renumberStudentsRows(); });
+  if (clearStudentsBtn) {
+    clearStudentsBtn.addEventListener("click", () => {
+      const ok = window.confirm("학생 명단을 전부 삭제할까요?\n(이 작업은 되돌릴 수 없어요)");
+      if (!ok) return;
+      // 입력값만 초기화(행은 유지)
+      const rows = getStudentsTableRows();
+      for (const tr of rows) {
+        const name = tr.querySelector(".stuName");
+        if (name) name.value = "";
+      }
+      // 토글은 끔(필요할 때 다시 켜기)
+      if (useGenderToggle) useGenderToggle.checked = false;
+      if (useLevelToggle) useLevelToggle.checked = false;
+      studentsTbody && studentsSetVisibility();
+      // 숨김 텍스트도 초기화(기존 로직 호환)
+      if (studentsInput) studentsInput.value = "";
+      // 저장은 사용자가 [저장]을 눌렀을 때 확정
+      toast("학생 명단이 모두 지워졌어요. 저장을 누르면 반영됩니다.");
+    });
+  }
+
 
   // 학생 입력 편의 버튼
   if (studentsNormalizeBtn && studentsInput) {
@@ -1665,15 +2977,155 @@ function parseStudents(text) {
     });
   }
 
-  if (openOptionsBtn) openOptionsBtn.addEventListener("click", () => openModal(optionsModal));
-  if (applyOptionsBtn) applyOptionsBtn.addEventListener("click", () => {
+  if (openOptionsBtn) openOptionsBtn.addEventListener("click", () => {
+    // 옵션 모달 오픈 전, textarea → 그룹 UI로 동기화
+    if (forbiddenGroupsContainer) renderForbiddenGroupsFromTextarea();
+    syncOptionEnables();
+    openModal(optionsModal);
+    // v0.82: 모달이 열릴 때 DOM 요소가 확실히 존재한 뒤 다시 동기화
+    syncOptionEnables();
+    const _balanceEl = document.getElementById("balanceLevels");
+    if (_balanceEl && !_balanceEl.dataset.bound) {
+      _balanceEl.addEventListener("change", syncOptionEnables);
+      _balanceEl.dataset.bound = "1";
+    }
+  });
+  if (applyOptionsBtn) applyOptionsBtn.addEventListener("click", (e) => {
+    // Apply options
     ensureShowGroupsForBalance();
     computeViolations();
     renderGrid();
-    closeModal(optionsModal);
     toast("옵션이 적용됐어요!");
+    // 책상 배열과 동일하게: 적용 시 자동으로 닫기
+    closeModal(optionsModal);
   });
-  if (openSaveBtn) openSaveBtn.addEventListener("click", () => openModal(saveModal));
+  if (openSaveBtn) openSaveBtn.addEventListener("click", () => { if (shareBox) shareBox.classList.add("hidden"); openModal(saveModal); });
+
+  // ===== Share UI (inside 저장/불러오기) =====
+  let lastShareSnap = null;
+  const setWarnVisible = (toggleEl, textEl) => {
+    const on = toggleEl ? !!toggleEl.checked : true;
+    if (textEl) textEl.style.display = on ? "block" : "none";
+  };
+
+  function openShareBox() {
+    if (!shareBox) return;
+    shareBox.classList.remove("hidden");
+    lastShareSnap = currentSnapshot();
+    setWarnVisible(shareWarnToggle, shareWarnText);
+
+    const encoded = encodeShareState(lastShareSnap);
+    if (!encoded) { toast("공유 링크 생성에 실패했어요."); return; }
+
+    const u = new URL(location.href);
+    u.hash = "";
+    u.search = "";
+    u.searchParams.set("s", encoded);
+
+    const link = u.toString();
+    if (shareLinkInput) shareLinkInput.value = link;
+    if (shareCopyBtn) shareCopyBtn.disabled = false;
+  }
+  function closeShareBox() {
+    if (!shareBox) return;
+    shareBox.classList.add("hidden");
+  }
+
+  if (shareBtn) shareBtn.addEventListener("click", () => {
+    if (!shareBox) return;
+    if (shareBox.classList.contains("hidden")) openShareBox();
+    else closeShareBox();
+  });
+  if (shareCloseBtn) shareCloseBtn.addEventListener("click", closeShareBox);
+  if (shareWarnToggle) shareWarnToggle.addEventListener("change", () => setWarnVisible(shareWarnToggle, shareWarnText));
+
+  if (shareApplyBtn) shareApplyBtn.addEventListener("click", () => {
+    lastShareSnap = currentSnapshot();
+    const encoded = encodeShareState(lastShareSnap);
+    if (!encoded) { toast("공유 링크 생성에 실패했어요."); return; }
+
+    const u = new URL(location.href);
+    u.hash = "";
+    // 기존 파라미터는 정리하고, s만 포함
+    u.search = "";
+    u.searchParams.set("s", encoded);
+
+    const link = u.toString();
+    if (shareLinkInput) shareLinkInput.value = link;
+    if (shareCopyBtn) shareCopyBtn.disabled = false;
+    toast("공유 링크가 준비됐어요. 링크 복사를 눌러주세요.");
+  });
+
+  if (shareCopyBtn) shareCopyBtn.addEventListener("click", async () => {
+    const v = shareLinkInput ? shareLinkInput.value : "";
+    if (!v) return;
+    try {
+      await navigator.clipboard.writeText(v);
+      toast("링크를 복사했어요!");
+    } catch (e) {
+      try {
+        shareLinkInput?.focus();
+        shareLinkInput?.select();
+        document.execCommand("copy");
+        toast("링크를 복사했어요!");
+      } catch {
+        toast("복사에 실패했어요. 링크를 길게 눌러 복사해 주세요.");
+      }
+    }
+  });
+
+  // ===== Incoming share link (preview → apply) =====
+  let pendingShareSnap = null;
+
+  function clearShareParam() {
+    try {
+      const u = new URL(location.href);
+      if (!u.searchParams.has("s")) return;
+      u.searchParams.delete("s");
+      history.replaceState({}, "", u.toString());
+    } catch {}
+  }
+
+  function openIncomingShareModalFromUrl() {
+    try {
+      const u = new URL(location.href);
+      const s = u.searchParams.get("s");
+      if (!s) return;
+      pendingShareSnap = decodeShareState(s);
+      renderSharePreview(incomingSharePreview, pendingShareSnap);
+      setWarnVisible(incomingWarnToggle, incomingWarnText);
+      openModal(incomingShareModal);
+    } catch {}
+  }
+
+  if (incomingWarnToggle) incomingWarnToggle.addEventListener("change", () => setWarnVisible(incomingWarnToggle, incomingWarnText));
+
+  if (incomingShareModal) {
+    // overlay click close도 파라미터 정리
+    incomingShareModal.addEventListener("click", (e) => {
+      if (e.target === incomingShareModal) clearShareParam();
+    });
+    // X/닫기 버튼으로 닫아도 정리
+    document.querySelectorAll('[data-close="incomingShareModal"]').forEach((btn) => {
+      btn.addEventListener("click", clearShareParam);
+    });
+  }
+
+  if (incomingApplyBtn) incomingApplyBtn.addEventListener("click", () => {
+    if (!pendingShareSnap) {
+      toast("공유 배치도를 불러올 수 없어요.");
+      closeModal(incomingShareModal);
+      clearShareParam();
+      return;
+    }
+    applySnapshot(pendingShareSnap);
+    computeViolations();
+    renderGrid();
+    /* rotation 기록은 이제 '배치도 저장' 시에만 반영됩니다. */
+    closeModal(incomingShareModal);
+    clearShareParam();
+    toast("공유 배치도를 적용했어요!");
+  });
 
   if (openLayoutBtn) openLayoutBtn.addEventListener("click", () => {
     syncLayoutModalUIFromState();
@@ -1780,7 +3232,8 @@ function parseStudents(text) {
       const dataRow = mapDisplayRowToDataRow(displayR);
 
       for (let c = 0; c < cols; c++) {
-        const seatId = dataRow * cols + c;
+        const dataCol = mapDisplayColToDataCol(c);
+          const seatId = dataRow * cols + dataCol;
         const seat = getSeat(seatId);
         if (!seat) continue;
 
@@ -1936,13 +3389,151 @@ function parseStudents(text) {
 
   // ===== Save Slots =====
   const SLOT_INDEX_KEY = "seatplan_slots_v015";
+  const ROTATION_LEDGER_KEY = "seatplan_rotation_ledger_v1";
   function slotKey(id) { return `seatplan_slot_${id}_v015`; }
+
+  function loadRotationLedger() {
+    try {
+      const raw = localStorage.getItem(ROTATION_LEDGER_KEY);
+      const obj = raw ? JSON.parse(raw) : {};
+      return obj && typeof obj === "object" ? obj : {};
+    } catch { return {}; }
+  }
+  function saveRotationLedger(ledger) {
+    try { localStorage.setItem(ROTATION_LEDGER_KEY, JSON.stringify(ledger || {})); } catch {}
+  }
+
+  function computeFrontBackNamesFromState(state) {
+    // state: { cols, rows, boardAtTop, seats: [{id, name, void}] }
+    const c = Number(state.cols ?? cols);
+    const r = Number(state.rows ?? rows);
+    const bat = (state.boardAtTop ?? boardAtTop) ? true : false;
+    const seatArr = Array.isArray(state.seats) ? state.seats : seats;
+
+    const byId = new Map();
+    for (const s of seatArr) byId.set(Number(s.id), s);
+
+    const frontRow = bat ? 0 : (r - 1);
+    const backRow  = bat ? (r - 1) : 0;
+
+    const frontIds = [];
+    const backIds = [];
+    for (let cc = 0; cc < c; cc++) {
+      frontIds.push(frontRow * c + cc);
+      backIds.push(backRow * c + cc);
+    }
+
+    const front = [];
+    const back = [];
+    for (const id of frontIds) {
+      const s = byId.get(id);
+      if (!s || s.void) continue;
+      if (s.name) front.push(String(s.name));
+    }
+    for (const id of backIds) {
+      const s = byId.get(id);
+      if (!s || s.void) continue;
+      if (s.name) back.push(String(s.name));
+    }
+    return { front, back };
+  }
+
+  function buildHistoryFromLedger(ledger) {
+    const h = {};
+    const ensure = (name) => { if (!h[name]) h[name] = { front: 0, back: 0 }; };
+
+    try {
+      for (const slotId of Object.keys(ledger || {})) {
+        const entry = ledger[slotId];
+        if (!entry) continue;
+        const fr = Array.isArray(entry.front) ? entry.front : [];
+        const bk = Array.isArray(entry.back) ? entry.back : [];
+        for (const n of fr) { if (!n) continue; ensure(n); h[n].front += 1; }
+        for (const n of bk) { if (!n) continue; ensure(n); h[n].back += 1; }
+      }
+    } catch {}
+    return h;
+  }
+
+  function initRotationLedgerFromSavedSlotsIfMissing() {
+    const existing = loadRotationLedger();
+    const hasAny = existing && Object.keys(existing).length > 0;
+    if (hasAny) {
+      history = buildHistoryFromLedger(existing);
+      return;
+    }
+
+    // 🔁 최초 1회: 저장된 배치도(각 슬롯의 최신 저장본)로부터 레저를 구성
+    const ledger = {};
+    const list = loadSlotIndex();
+    for (const s of list) {
+      const id = s && s.id ? String(s.id) : "";
+      if (!id) continue;
+      const raw = localStorage.getItem(slotKey(id));
+      if (!raw) continue;
+      try {
+        const snap = JSON.parse(raw);
+        const fb = computeFrontBackNamesFromState(snap);
+        ledger[id] = { front: fb.front, back: fb.back, t: Date.now() };
+      } catch {}
+    }
+    saveRotationLedger(ledger);
+    history = buildHistoryFromLedger(ledger);
+  }
+
+  function updateRotationLedgerForSlot(slotId) {
+    const id = String(slotId || "");
+    if (!id) return;
+
+    const ledger = loadRotationLedger();
+
+    // 옵션에 따라 기록할 항목을 결정(덮어쓰기)
+    const rotOn = (useRotation ? !!useRotation.checked : true);
+    const frOn = rotOn && (rotateFront ? !!rotateFront.checked : false);
+    const bkOn = rotOn && (rotateBack ? !!rotateBack.checked : false);
+
+    const fb = computeFrontBackNamesFromState({ cols, rows, boardAtTop, seats });
+
+    ledger[id] = {
+      front: frOn ? fb.front : [],
+      back:  bkOn ? fb.back : [],
+      t: Date.now()
+    };
+
+    saveRotationLedger(ledger);
+    history = buildHistoryFromLedger(ledger);
+  }
+
+  function removeRotationLedgerForSlot(slotId) {
+    const id = String(slotId || "");
+    if (!id) return;
+    const ledger = loadRotationLedger();
+    if (ledger && Object.prototype.hasOwnProperty.call(ledger, id)) {
+      delete ledger[id];
+      saveRotationLedger(ledger);
+      history = buildHistoryFromLedger(ledger);
+    }
+  }
+
 
   function loadSlotIndex() {
     try {
       const raw = localStorage.getItem(SLOT_INDEX_KEY);
       const list = raw ? JSON.parse(raw) : [];
-      return Array.isArray(list) ? list : [];
+      if (!Array.isArray(list)) return [];
+
+      // ✅ v0.79: 저장된 목록을 "오래된 → 최신"(위→아래 최신) 순서로 정규화
+      // 과거 버전에서는 unshift로 "최신 → 오래된"이 저장되었을 수 있어, 숫자형 id(Date.now) 기준으로 1회 역전
+      if (list.length > 1) {
+        const first = Number(list[0]?.id);
+        const last = Number(list[list.length - 1]?.id);
+        if (Number.isFinite(first) && Number.isFinite(last) && first > last) {
+          list.reverse();
+          // 저장 순서도 같이 정리
+          localStorage.setItem(SLOT_INDEX_KEY, JSON.stringify(list));
+        }
+      }
+      return list;
     } catch { return []; }
   }
   function saveSlotIndex(list) { localStorage.setItem(SLOT_INDEX_KEY, JSON.stringify(list)); }
@@ -1954,34 +3545,80 @@ function parseStudents(text) {
     if (list.length === 0) {
       const opt = document.createElement("option");
       opt.value = "";
-      opt.textContent = "슬롯 없음";
+      opt.textContent = "";
       slotSelect.appendChild(opt);
       slotSelect.disabled = true;
-      return;
+    } else {
+      slotSelect.disabled = false;
+      for (const s of list) {
+        const opt = document.createElement("option");
+        opt.value = s.id;
+        opt.textContent = s.name;
+        slotSelect.appendChild(opt);
+      }
+      // 선택값이 없으면 마지막(최신)으로
+      if (!slotSelect.value && list[list.length - 1]) slotSelect.value = list[list.length - 1].id;
     }
-    slotSelect.disabled = false;
-    for (const s of list) {
-      const opt = document.createElement("option");
-      opt.value = s.id;
-      opt.textContent = s.name;
-      slotSelect.appendChild(opt);
-    }
+    renderSlotList();
+    updateSlotActionEnables();
   }
 
-  function initSlots() {
+  function updateSlotActionEnables() {
+    const id = slotSelect ? slotSelect.value : "";
+    const hasSel = !!id;
+    if (saveBtn) saveBtn.disabled = !hasSel;
+    if (loadBtn) loadBtn.disabled = !hasSel;
+    if (deleteSlotBtn) deleteSlotBtn.disabled = !hasSel;
+  }
+
+  function renderSlotList() {
+    if (!slotList) return;
     const list = loadSlotIndex();
+    slotList.innerHTML = "";
+    const selId = slotSelect ? slotSelect.value : "";
+
+    if (slotEmpty) slotEmpty.style.display = list.length === 0 ? "block" : "none";
     if (list.length === 0) {
-      const id = String(Date.now());
-      saveSlotIndex([{ id, name: "기본 슬롯" }]);
+      return;
     }
+
+    for (const s of list) {
+      const item = document.createElement("div");
+      item.className = "slotItem" + (s.id === selId ? " sel" : "");
+      item.setAttribute("role", "option");
+      item.setAttribute("aria-selected", s.id === selId ? "true" : "false");
+      item.textContent = s.name;
+      item.addEventListener("click", () => {
+        if (slotSelect) slotSelect.value = s.id;
+        renderSlotList();
+        updateSlotActionEnables();
+      });
+      slotList.appendChild(item);
+    }
+
+    // 최신 항목이 아래로 쌓이므로, 목록이 길어지면 기본적으로 아래쪽(최신)으로 보이게
+    try { slotList.scrollTop = slotList.scrollHeight; } catch {}
+  }
+
+  if (slotSelect) {
+    slotSelect.addEventListener("change", () => {
+      renderSlotList();
+      updateSlotActionEnables();
+    });
+  }
+
+
+  function initSlots() {
     refreshSlotSelect();
     const l = loadSlotIndex();
-    if (slotSelect && l[0]) slotSelect.value = l[0].id;
+    if (slotSelect && l[l.length - 1]) slotSelect.value = l[l.length - 1].id;
+    renderSlotList();
+    updateSlotActionEnables();
   }
 
   function currentSnapshot() {
     return {
-  version: "0.41",
+  version: "0.74",
       cols, rows,
       seatType: seatTypeSel ? seatTypeSel.value : "single",
       boardAtTop,
@@ -2046,7 +3683,11 @@ function parseStudents(text) {
     if (studentsInput) studentsInput.value = text.students ?? "";
     if (forbiddenInput) forbiddenInput.value = text.forbidden ?? "";
 
-    history = snap.history || {};
+    // 금지쌍(그룹 UI) 갱신: textarea 값을 UI로 반영
+    if (forbiddenGroupsContainer) {
+      renderForbiddenGroupsFromTextarea();
+    }
+    // 로테이션 기록(history)은 저장된 배치도 레저에서 재구성되므로 스냅샷의 history로 덮어쓰지 않음
 
     if (Array.isArray(snap.seats)) {
       for (const src of snap.seats) {
@@ -2071,55 +3712,82 @@ function parseStudents(text) {
   }
 
   if (newSlotBtn) newSlotBtn.addEventListener("click", () => {
-    const name = prompt("새 슬롯 이름(예: 3-2반 3월)");
+    const name = prompt("새로 저장할 배치도 이름(예: 3-2반 3월)");
     if (!name) return;
     const list = loadSlotIndex();
     const id = String(Date.now());
-    list.unshift({ id, name });
+    // ✅ v0.79: 최신이 아래로 쌓이도록 push
+    list.push({ id, name });
     saveSlotIndex(list);
     refreshSlotSelect();
     if (slotSelect) slotSelect.value = id;
-    log(`슬롯 생성: ${name}`);
+
+    // 새로 저장: 즉시 스냅샷 저장
+    try {
+      localStorage.setItem(slotKey(id), JSON.stringify(currentSnapshot()));
+      try { updateRotationLedgerForSlot(id); } catch {}
+    } catch {}
+
+    renderSlotList();
+    updateSlotActionEnables();
+    toast("새로 저장 완료!");
+    log(`배치도 새로 저장: ${name}`);
   });
 
   if (saveBtn) saveBtn.addEventListener("click", () => {
     const id = slotSelect ? slotSelect.value : "";
-    if (!id) { toast("저장할 슬롯을 선택하세요."); return; }
+    if (!id) { toast("덮어쓸 배치도를 선택하세요."); return; }
+
+    // ✅ 먼저 스냅샷 저장
     localStorage.setItem(slotKey(id), JSON.stringify(currentSnapshot()));
-    toast("저장 완료!");
-    log("슬롯 저장 완료");
+
+    // ✅ 로테이션 기록은 '배치도 저장' 시에만 기록하며, 같은 배치도를 다시 저장하면 덮어쓰기
+    try { updateRotationLedgerForSlot(id); } catch {}
+
+    toast("저장(덮어쓰기) 완료!");
+    log("배치도 저장 완료");
   });
 
   if (loadBtn) loadBtn.addEventListener("click", () => {
     const id = slotSelect ? slotSelect.value : "";
-    if (!id) { toast("불러올 슬롯을 선택하세요."); return; }
+    if (!id) { toast("불러올 배치도을 선택하세요."); return; }
     const raw = localStorage.getItem(slotKey(id));
     if (!raw) { toast("저장 데이터가 없어요."); return; }
     try {
       applySnapshot(JSON.parse(raw));
       toast("불러오기 완료!");
-      log("슬롯 불러오기 완료");
+      log("배치도 불러오기 완료");
     } catch { toast("불러오기 실패(데이터 손상)."); }
   });
 
   if (deleteSlotBtn) deleteSlotBtn.addEventListener("click", () => {
     const id = slotSelect ? slotSelect.value : "";
-    if (!id) { toast("삭제할 슬롯이 없어요."); return; }
-    if (!confirm("이 슬롯을 삭제할까요?")) return;
+    if (!id) { toast("삭제할 배치도이 없어요."); return; }
+    if (!confirm("이 배치도을 삭제할까요?")) return;
 
     localStorage.removeItem(slotKey(id));
+
+    // ✅ 해당 배치도의 로테이션 기록(레저)도 함께 제거
+    try { removeRotationLedgerForSlot(id); } catch {}
     let list = loadSlotIndex();
     list = list.filter((x) => x.id !== id);
     saveSlotIndex(list);
     refreshSlotSelect();
-    toast("슬롯 삭제 완료");
-    log("슬롯 삭제 완료");
+    toast("배치도 삭제 완료");
+    log("배치도 삭제 완료");
   });
 
   if (forbiddenInput) forbiddenInput.addEventListener("input", () => {
     syncOptionEnables();
     computeViolations();
     renderGrid();
+  });
+
+  // 금지쌍: 그룹 추가
+  if (addForbiddenGroupBtn) addForbiddenGroupBtn.addEventListener("click", () => {
+    if (!forbiddenGroupsContainer) return;
+    forbiddenGroupsContainer.appendChild(createForbidGroupRow([]));
+    syncForbiddenTextareaFromGroups(true);
   });
 
   if (includeDiagonal) includeDiagonal.addEventListener("change", () => {
@@ -2141,8 +3809,10 @@ function parseStudents(text) {
   function start() {
     registerSW();
     initSlots();
+    initRotationLedgerFromSavedSlotsIfMissing();
     updateOrientationButtonLabel();
     applyHintVisibility();
+    openIncomingShareModalFromUrl();
 
     layoutKind = "single";
     layoutParams.singleCols = 5;
@@ -2150,21 +3820,65 @@ function parseStudents(text) {
     applyLayout("single", layoutParams);
 
     syncLayoutModalUIFromState();
-    log("v0.31 시작: 금지쌍/그룹(쉼표) 인접 금지 자동배치 반영");
-    log("v0.30 변경: 고정좌석 핀(좌상단) + 모둠태그 색상 + 잘림없는 모둠 메뉴 + 최소 책상 크기");
+    log("v0.79 시작: 학생 입력(표 UI/라디오) + 공유 링크 + 모바일 개선");
+    log("v0.79→v0.79: UI 용어(배치도) 정리 + 모바일 메뉴 순서 고정");
   }
 
-  start();
-})()
-  function normalizeStudentsInput() {
-    if (!studentsInput) return;
-    const lines = (studentsInput.value || "")
-      .replace(/\r/g, "\n")
-      .split("\n")
-      .map((x) => x.trim())
-      .filter(Boolean)
-      .map((x) => x.replace(/\s+/g, " "));
-    studentsInput.value = lines.join("\n");
-  }
+    start();
+})();
 
-;
+
+/* ===== v0.79: Fixed seat manual input (A plan) ===== */
+(function(){
+  const _orig = window.handleFixedSeatClick;
+
+  window.handleFixedSeatClick = function(seat){
+    try{
+      if(seat && !seat.studentName){
+        const name = prompt("이 좌석에 고정할 학생 이름을 입력하세요");
+        if(!name) return;
+
+        seat.studentName = name.trim();
+        seat.fixed = true;
+        seat.manual = true;
+
+        if(Array.isArray(window.students)){
+          window.students = window.students.filter(s => s.name !== name.trim());
+        }
+
+        if(typeof window.render === "function") window.render();
+        if(typeof window.renderSeats === "function") window.renderSeats();
+        return;
+      }
+
+      if(typeof _orig === "function"){
+        _orig(seat);
+      }
+    }catch(e){
+      console.error("Fixed seat manual error:", e);
+    }
+  };
+})();
+/* ===== end v0.79 ===== */
+
+
+
+// v0.82: always sync group size enable state
+function forceSyncGroupOption(){
+  const bal = document.getElementById("balanceLevels");
+  const size = document.getElementById("groupSize");
+  if(!bal || !size) return;
+  size.disabled = !bal.checked;
+  size.classList.toggle("disabled", !bal.checked);
+}
+
+document.addEventListener("change", (e)=>{
+  if(e.target && e.target.id==="balanceLevels"){
+    forceSyncGroupOption();
+  }
+});
+
+document.addEventListener("DOMContentLoaded", ()=>{
+  setTimeout(forceSyncGroupOption, 0);
+});
+

@@ -3197,11 +3197,6 @@ let _savingStudentsNow = false;
     canvas.height = Math.max(650, Math.ceil(totalH));
 
     const ctx = canvas.getContext("2d");
-  // ✅ 이미지 저장용: 배경을 흰색으로 깔아 투명 배경 방지
-  ctx.save();
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.restore();
 
     ctx.fillStyle = "#0b1220";
     ctx.fillRect(0, 0, canvas.width, canvas.height);

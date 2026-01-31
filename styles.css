@@ -1265,38 +1265,3 @@ select{
 
 .stuDelBtn{width:34px;height:34px;border-radius:10px;border:1px solid rgba(148,163,184,.22);background:rgba(15,23,42,.35);color:rgba(226,232,240,.85);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;}
 .stuDelBtn:hover{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35);color:#fecaca;}
-
-
-/* ===== Print styles: force white background for printing ===== */
-@media print {
-  html, body {
-    background: #ffffff !important;
-    color: #000000 !important;
-  }
-  /* 숨길 UI */
-  .topBar, .menuBar, .toast, .modal, .logPanel, .hintBar, .floatingBtns {
-    display: none !important;
-  }
-  /* 배치도 영역은 흰 바탕에 또렷하게 */
-  #seatGrid, .seatGrid, .seat {
-    background: #ffffff !important;
-    color: #000000 !important;
-    box-shadow: none !important;
-  }
-  .seat {
-    border: 1px solid #000 !important;
-  }
-}
-
-/* ===== Guide page ===== */
-.guideWrap{min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:24px;}
-.guideCard{width:min(900px,100%);background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:20px 18px;}
-.guideHeader{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;}
-.guideHeader h1{font-size:22px;margin:0;}
-.guideBack{color:#cbd5ff;text-decoration:none;font-size:14px;}
-.guideLead{margin:10px 0 14px 0;opacity:0.9;line-height:1.5;}
-.guideList{margin:0;padding-left:20px;line-height:1.7;}
-.guideTip{margin-top:6px;opacity:0.85;font-size:13px;}
-.guideSub{margin:8px 0 0 0;padding-left:18px;opacity:0.9;}
-.guideSection{margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.08);}
-.guideSection h2{font-size:16px;margin:0 0 6px 0;}

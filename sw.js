@@ -1,4 +1,4 @@
-/* SeatPlan PWA - Service Worker (v0.85)
+/* SeatPlan PWA - Service Worker (v0.84)
    교체용 sw.js (GitHub Pages 포함)
 
    ✅ 변경점
@@ -17,11 +17,10 @@ const ASSETS = [
   "./index.html",
   "./styles.css",
   "./app.js",
-  "./guide.html",
   "./manifest.webmanifest",
-  "./styles.css?v=0.85",
-  "./app.js?v=0.85",
-  "./manifest.webmanifest?v=0.85",
+  "./styles.css?v=0.84",
+  "./app.js?v=0.84",
+  "./manifest.webmanifest?v=0.84",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
 ];

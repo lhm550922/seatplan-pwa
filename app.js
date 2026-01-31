@@ -1142,10 +1142,6 @@ for (let i = 0; i < orderedIds.length; i += size) {
     if (accSingle) accSingle.classList.toggle("hidden", kind !== "single");
     if (accPair) accPair.classList.toggle("hidden", kind !== "pair");
     if (accGroup) accGroup.classList.toggle("hidden", kind !== "group");
-
-    const disableAutoGroup = kind === "group";
-    if (groupMode) groupMode.disabled = disableAutoGroup;
-    if (balanceLevels) balanceLevels.disabled = disableAutoGroup;
   }
 
   function computeGroupGrid(groupSize, groupCount) {
@@ -1626,7 +1622,8 @@ for (let i = 0; i < orderedIds.length; i += size) {
     const action = document.createElement("div");
     action.className = "actionBadge";
     action.dataset.action = seat.void ? "restore" : "delete";
-    action.textContent = seat.void ? "↩" : "🗑";
+    // iOS/모바일에서 '↩' glyph가 안 보이는 경우가 있어, 복구는 보다 확실한 기호로 표시
+    action.textContent = seat.void ? "⟲" : "🗑";
     action.title = seat.void ? "통로(삭제) 자리 복구" : "좌석 삭제(통로 만들기)";
     div.appendChild(action);
 
@@ -2829,6 +2826,8 @@ for (let i = 0; i < orderedIds.length; i += size) {
     log("모둠 크기 변경");
   });
   if (balanceLevels) balanceLevels.addEventListener("change", () => {
+    // 모둠 인원(select) 활성/비활성 상태를 체크박스와 항상 동기화
+    syncOptionEnables();
     ensureShowGroupsForBalance();
     renderGrid();
     log("모둠별 수준 분산 옵션 변경");
@@ -3618,7 +3617,7 @@ let _savingStudentsNow = false;
 
   function currentSnapshot() {
     return {
-  version: "0.74",
+  version: "0.84",
       cols, rows,
       seatType: seatTypeSel ? seatTypeSel.value : "single",
       boardAtTop,
@@ -3863,22 +3862,5 @@ let _savingStudentsNow = false;
 
 
 
-// v0.82: always sync group size enable state
-function forceSyncGroupOption(){
-  const bal = document.getElementById("balanceLevels");
-  const size = document.getElementById("groupSize");
-  if(!bal || !size) return;
-  size.disabled = !bal.checked;
-  size.classList.toggle("disabled", !bal.checked);
-}
-
-document.addEventListener("change", (e)=>{
-  if(e.target && e.target.id==="balanceLevels"){
-    forceSyncGroupOption();
-  }
-});
-
-document.addEventListener("DOMContentLoaded", ()=>{
-  setTimeout(forceSyncGroupOption, 0);
-});
+// (removed) v0.82: legacy patch that incorrectly disabled layout 'groupSize' select
 

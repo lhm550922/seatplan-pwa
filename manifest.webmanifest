@@ -1,7 +1,7 @@
 {
   "name": "자리배치 PWA (SeatPlan)",
   "short_name": "SeatPlan",
-  "start_url": "./?v=0.85",
+  "start_url": "./?v=0.84",
   "display": "standalone",
   "background_color": "#0b1220",
   "theme_color": "#0b1220",

@@ -868,7 +868,6 @@ function studentsSetVisibility(){
             <label class="radioItem"><input type="radio" name="l_${idx}" value="하"/> 하</label>
           </div>
         </td>
-            <td class="delCell"><button type="button" class="stuDelBtn" data-action="delStudentRow" aria-label="학생 삭제">🗑️</button></td>
     `;
     studentsTbody.appendChild(tr);
     }
@@ -1623,8 +1622,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
     const action = document.createElement("div");
     action.className = "actionBadge";
     action.dataset.action = seat.void ? "restore" : "delete";
-    // iOS/모바일에서 '↩' glyph가 안 보이는 경우가 있어, 복구는 보다 확실한 기호로 표시
-    action.textContent = seat.void ? "⟲" : "🗑";
+    action.textContent = seat.void ? "↩" : "🗑";
     action.title = seat.void ? "통로(삭제) 자리 복구" : "좌석 삭제(통로 만들기)";
     div.appendChild(action);
 
@@ -2129,10 +2127,11 @@ for (let i = 0; i < orderedIds.length; i += size) {
       const id = Number(seatDiv.dataset.seatId);
       if (Number.isNaN(id)) return;
       const seat = getSeat(id);
-      if (seat && seat.void) return;
+      // 통로(삭제) 좌석도 탭으로 선택해서 복구 아이콘을 띄울 수 있도록 허용
+      const isVoidSeat = !!(seat && seat.void);
 
       // ✅ 드래그 후보만 설정(스크롤 가능) + 롱프레스(약 180ms) 시 드래그 허용
-      touchDrag = { id, seatDiv, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, moved: false, dx: 0, dy: 0, overId: null, armed: false, _armT: null };
+      touchDrag = { id, seatDiv, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, moved: false, dx: 0, dy: 0, overId: null, armed: false, _armT: null, noSwap: isVoidSeat };
 
       // 손가락이 살짝 움직이며 스크롤하려는 경우를 우선: 롱프레스 후에만 자유 드래그
       touchDrag._armT = setTimeout(() => {
@@ -2148,6 +2147,16 @@ for (let i = 0; i < orderedIds.length; i += size) {
       const dx = e.clientX - touchDrag.startX;
       const dy = e.clientY - touchDrag.startY;
       touchDrag.dx = dx; touchDrag.dy = dy;
+
+      // 통로(삭제) 좌석은 드래그/교체는 하지 않고, 탭으로만 복구 아이콘을 띄웁니다.
+      // (스크롤 제스처는 방해하지 않도록, 일정 이상 움직이면 드래그를 취소)
+      if (touchDrag.noSwap) {
+        if (Math.hypot(dx, dy) >= DRAG_THRESHOLD) {
+          resetTouchDragVisual(); // 스크롤 의도
+        }
+        return;
+      }
+
 
       if (!touchDrag.moved) {
         // ✅ 아직 드래그로 확정 전이면 스크롤을 방해하지 않음

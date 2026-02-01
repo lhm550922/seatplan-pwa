@@ -32,6 +32,7 @@
   const openStudentsBtn = $("openStudentsBtn");
   const openOptionsBtn = $("openOptionsBtn");
   const openSaveBtn = $("openSaveBtn");
+  const openGuideBtn = $("openGuideBtn");
 
   const layoutModal = $("layoutModal");
   const studentsModal = $("studentsModal");
@@ -3000,6 +3001,8 @@ let _savingStudentsNow = false;
   });
   if (openSaveBtn) openSaveBtn.addEventListener("click", () => { if (shareBox) shareBox.classList.add("hidden"); openModal(saveModal); });
 
+  if (openGuideBtn) openGuideBtn.addEventListener("click", () => { window.location.href = "./guide.html"; });
+
   // ===== Share UI (inside 저장/불러오기) =====
   let lastShareSnap = null;
   const setWarnVisible = (toggleEl, textEl) => {
@@ -3198,10 +3201,10 @@ let _savingStudentsNow = false;
 
     const ctx = canvas.getContext("2d");
 
-    ctx.fillStyle = "#0b1220";
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = "#e5e7eb";
+    ctx.fillStyle = "#111827";
     ctx.font = "900 22px system-ui";
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
@@ -3213,12 +3216,12 @@ let _savingStudentsNow = false;
 
     const gridY = boardAtTop ? boardY + boardH + 12 : pad + titleH;
 
-    ctx.fillStyle = "rgba(34,197,94,0.10)";
-    ctx.strokeStyle = "rgba(34,197,94,0.45)";
+    ctx.fillStyle = "rgba(17,24,39,0.06)";
+    ctx.strokeStyle = "rgba(17,24,39,0.85)";
     ctx.lineWidth = 2;
     roundRect(ctx, pad, boardY, gridW, boardH, 16, true, true);
 
-    ctx.fillStyle = "#bbf7d0";
+    ctx.fillStyle = "#111827";
     ctx.font = "900 26px system-ui";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -3243,10 +3246,10 @@ let _savingStudentsNow = false;
 
         if (seat.void) {
           ctx.fillStyle = "rgba(0,0,0,0)";
-          ctx.strokeStyle = "rgba(255,255,255,0.20)";
+          ctx.strokeStyle = "rgba(17,24,39,0.28)";
           ctx.lineWidth = 2;
           dashedRoundRect(ctx, x, y, seatW, seatH, 14);
-          ctx.fillStyle = "rgba(156,163,175,0.65)";
+          ctx.fillStyle = "rgba(17,24,39,0.55)";
           ctx.font = "800 16px system-ui";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
@@ -3254,8 +3257,8 @@ let _savingStudentsNow = false;
           continue;
         }
 
-        ctx.fillStyle = "rgba(255,255,255,0.05)";
-        ctx.strokeStyle = "rgba(229,231,235,0.35)";
+        ctx.fillStyle = "rgba(17,24,39,0.04)";
+        ctx.strokeStyle = "rgba(17,24,39,0.35)";
         if (seat.seatGender === "M") ctx.strokeStyle = "rgba(59,130,246,0.85)";
         if (seat.seatGender === "F") ctx.strokeStyle = "rgba(239,68,68,0.85)";
         ctx.lineWidth = 2;
@@ -3271,7 +3274,7 @@ let _savingStudentsNow = false;
         roundRect(ctx, x, y, seatW, seatH, 14, true, true);
 
         if (showSeatNo && showSeatNo.checked) {
-          ctx.fillStyle = "rgba(156,163,175,0.9)";
+          ctx.fillStyle = "rgba(17,24,39,0.70)";
           ctx.font = "800 12px system-ui";
           ctx.textAlign = "left";
           ctx.textBaseline = "top";
@@ -3302,10 +3305,10 @@ let _savingStudentsNow = false;
         if (showGroups && showGroups.checked) {
           const gid = clamp(Number(seat.groupId ?? 1), 1, 8);
           ctx.fillStyle = "rgba(0,0,0,0.25)";
-          ctx.strokeStyle = "rgba(255,255,255,0.15)";
+          ctx.strokeStyle = "rgba(17,24,39,0.22)";
           ctx.lineWidth = 1;
           roundRect(ctx, x + 8, y + seatH - 26, 64, 18, 9, true, true);
-          ctx.fillStyle = "rgba(229,231,235,0.9)";
+          ctx.fillStyle = "rgba(17,24,39,0.92)";
           ctx.font = "800 11px system-ui";
           ctx.textAlign = "left";
           ctx.textBaseline = "middle";
@@ -3315,10 +3318,10 @@ let _savingStudentsNow = false;
         if (showGender && showGender.checked) {
           const g = seat.seatGender === "A" ? "무관" : seat.seatGender === "M" ? "남" : "여";
           ctx.fillStyle = "rgba(0,0,0,0.25)";
-          ctx.strokeStyle = "rgba(255,255,255,0.15)";
+          ctx.strokeStyle = "rgba(17,24,39,0.22)";
           ctx.lineWidth = 1;
           roundRect(ctx, x + seatW - 54, y + seatH - 26, 46, 18, 9, true, true);
-          ctx.fillStyle = "rgba(156,163,175,0.95)";
+          ctx.fillStyle = "rgba(17,24,39,0.75)";
           ctx.font = "900 11px system-ui";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
@@ -3327,7 +3330,7 @@ let _savingStudentsNow = false;
       }
     }
 
-    ctx.fillStyle = "rgba(156,163,175,0.85)";
+    ctx.fillStyle = "rgba(17,24,39,0.65)";
     ctx.font = "800 12px system-ui";
     ctx.textAlign = "right";
     ctx.textBaseline = "bottom";

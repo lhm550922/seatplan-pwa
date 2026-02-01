@@ -1265,3 +1265,31 @@ select{
 
 .stuDelBtn{width:34px;height:34px;border-radius:10px;border:1px solid rgba(148,163,184,.22);background:rgba(15,23,42,.35);color:rgba(226,232,240,.85);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;}
 .stuDelBtn:hover{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.35);color:#fecaca;}
+
+/* ===== Print / Export (v0.85) ===== */
+@media print{
+  @page{ margin: 10mm; }
+  body{ background:#fff !important; color:#111827 !important; }
+  .headerTop, .status, .menuBar, .hintBar, .modeBanner, .violationsBar, .logCard, .footer{ display:none !important; }
+  .layout{ max-width:none !important; margin:0 !important; padding:0 !important; }
+  .card{ background:#fff !important; border-color:#111827 !important; box-shadow:none !important; }
+  .stage{ background:#fff !important; border-color:#111827 !important; }
+  .boardBig{ background:#fff !important; border:2px solid #111827 !important; }
+  .boardBigLabel{ color:#111827 !important; }
+  .seat{
+    background:#fff !important;
+    border:1.6px solid rgba(17,24,39,.75) !important;
+    color:#111827 !important;
+  }
+  .seat.void{
+    background:#fff !important;
+    border:1.2px dashed rgba(17,24,39,.45) !important;
+  }
+  .name{ color:#111827 !important; }
+  .seatNo{ color:rgba(17,24,39,.75) !important; }
+  .groupTag, .genderTag, .pinBadge{
+    border-color: rgba(17,24,39,.35) !important;
+    color:#111827 !important;
+    background: rgba(17,24,39,.06) !important;
+  }
+}

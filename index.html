@@ -8,16 +8,16 @@
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7080369772039977"
      crossorigin="anonymous"></script>
   <link rel="icon" type="image/png" href="icons/favicon.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=0.84" />
-  <link rel="stylesheet" href="./styles.css?v=0.84" />
+  <link rel="manifest" href="./manifest.webmanifest?v=0.85" />
+  <link rel="stylesheet" href="./styles.css?v=0.85" />
   <title>자리배치 PWA</title>
 </head>
 <body>
   <header class="header">
     <div class="headerTop">
       <div>
-        <h1>자리배치 PWA <span style="opacity:.65;font-weight:900">v0.84</span></h1>
-        <p class="sub">책상 배열 → 학생 입력 → 자동 배치</p>
+        <h1>자리배치 PWA <span style="opacity:.65;font-weight:900">v0.85</span></h1>
+        <p class="sub">책상 배열 → 학생 입력 → (선택사항: 성별/고정좌석/세부 옵션 등) → 자동 배치</p>
       </div>
       <div class="status">
         <div class="pill">Service Worker: <b id="swStatus">확인 중…</b></div>
@@ -33,6 +33,7 @@
             <button id="openLayoutBtn" class="required">책상 배열</button>
             <button id="openStudentsBtn" class="required">학생 입력</button>
             <button id="autoFillBtn" class="required">자동 배치★</button>
+            <button id="openGuideBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">📘</span><span class="btnLabel">사용법</span></button>
           </div>
 
           <div class="menuRow menuRowModes">
@@ -430,7 +431,7 @@
   <!-- ✅ 모둠 드롭다운(잘림 방지용) : 화면 위 레이어 -->
   <div id="groupMenu" class="groupMenu hidden" role="listbox" aria-label="모둠 번호 선택"></div>
 
-  <script src="./app.js?v=0.84"></script>
+  <script src="./app.js?v=0.85"></script>
 
 <footer style="text-align:center; margin:20px 0; font-size:0.9em; color:rgba(255,255,255,0.85);">
   <a href="privacy.html" style="color:rgba(255,255,255,0.85);">개인정보처리방침</a> |

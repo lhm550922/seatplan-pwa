@@ -1,61 +1,66 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#0b1220" />
   <link rel="icon" type="image/png" href="icons/favicon.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=0.85" />
   <link rel="stylesheet" href="./styles.css?v=0.85" />
   <title>사용법 안내 - 자리배치 PWA</title>
 </head>
 <body>
-  <div class="guideWrap">
-    <div class="guideCard">
-      <div class="guideHeader">
-        <h1>사용법 안내</h1>
-        <a class="guideBack" href="./index.html">← 메인으로</a>
+  <header class="top">
+    <div class="topInner">
+      <div class="brand">
+        <h1 style="margin:0;line-height:1.1;">자리배치 PWA <span style="opacity:.65;font-weight:900">사용법</span></h1>
+        <p class="sub">책상 배열 → 학생 입력 → (선택사항: 성별/고정좌석/세부 옵션 등) → 자동 배치</p>
       </div>
-
-      <p class="guideLead">
-        기본 흐름은 <b>책상 배열 → 학생 입력 → (선택사항) → 자동 배치</b> 입니다.
-      </p>
-
-      <ol class="guideList">
-        <li>
-          <b>책상 배열</b>에서 교실 책상 형태(1인/2인/모둠)와 행·열을 설정하고 <b>적용</b>합니다.
-          <div class="guideTip">💡 메인창에서 책상을 드래그해서 이동하거나, 선택 후 삭제/복구도 가능해요.</div>
-        </li>
-        <li>
-          <b>학생 입력</b>에서 학생 명단을 입력하고 <b>저장</b>합니다.
-          <div class="guideTip">💡 성별/학습 수준 입력은 선택사항입니다. 체크를 켜야 입력 항목이 활성화돼요.</div>
-        </li>
-        <li>
-          (선택) <b>성별 지정</b>, <b>고정 좌석</b>, <b>세부 옵션</b>을 이용해 추가 조건을 설정합니다.
-          <ul class="guideSub">
-            <li><b>성별 지정</b>: 성별에 따라 자리를 최대한 맞춰 배치합니다.</li>
-            <li><b>고정 좌석</b>: 특정 학생을 특정 좌석에 고정합니다.</li>
-            <li><b>세부 옵션</b>: 금지쌍, 로테이션 기록, 모둠별 수준 분산 등 세부 규칙을 설정합니다.</li>
-          </ul>
-        </li>
-        <li>
-          <b>자동 배치★</b>를 누르면 조건을 반영해 학생들이 배치됩니다.
-        </li>
-        <li>
-          필요하면 <b>저장/불러오기</b>에서 배치도를 저장하고, 다른 기기와 공유할 수 있습니다.
-        </li>
-      </ol>
-
-      <div class="guideSection">
-        <h2>인쇄 · 이미지 다운로드</h2>
-        <p>인쇄/이미지 다운로드 시에는 배경이 <b>흰색</b>으로 출력되도록 설정되어 있어요.</p>
-      </div>
-
-      <div class="guideSection">
-        <h2>개인정보 안내</h2>
-        <p>학생 실명/개인정보가 포함될 수 있으니 공유·저장 시 유의해 주세요.</p>
+      <div class="status">
+        <a class="pill" href="./index.html" style="text-decoration:none;display:inline-block;">← 앱으로 돌아가기</a>
       </div>
     </div>
-  </div>
+  </header>
+
+  <main class="layout" style="grid-template-columns: 1fr; max-width: 980px; margin: 0 auto;">
+    <section class="card" style="padding:18px;">
+      <h2 style="margin-top:0;">빠른 시작</h2>
+      <ol style="line-height:1.8;">
+        <li><b>책상 배열</b>에서 교실 책상 형태/행·열을 선택해요.</li>
+        <li><b>학생 입력</b>에서 이름을 입력하고 <b>저장</b>해요. (빈 행은 자동 제외)</li>
+        <li>필요하면 <b>(선택사항)</b>으로 아래 기능을 설정해요:
+          <ul style="margin-top:6px; line-height:1.7;">
+            <li><b>성별 지정</b>: 성별에 따라 자리 배치</li>
+            <li><b>고정 좌석</b>: 특정 학생을 특정 자리로 고정</li>
+            <li><b>세부 옵션</b>: 금지쌍/인접 판단/모둠 관련 옵션 등</li>
+          </ul>
+        </li>
+        <li><b>자동 배치</b>를 눌러 좌석을 배치해요.</li>
+        <li>배치가 마음에 들지 않으면 메인창에서 <b>책상 이동/삭제</b>로 미세 조정할 수 있어요.</li>
+      </ol>
+
+      <h2>저장/불러오기 · 공유</h2>
+      <ul style="line-height:1.8;">
+        <li><b>새로 저장</b>: 현재 배치도를 새 이름으로 저장</li>
+        <li><b>저장(덮어쓰기)</b>: 선택한 배치도를 현재 상태로 덮어쓰기</li>
+        <li><b>불러오기/삭제</b>: 목록에서 배치도를 선택 후 실행</li>
+        <li><b>공유</b>: 현재 배치도를 다른 PC/모바일로 옮길 수 있는 링크 생성 (링크는 생성 시점의 상태예요)</li>
+      </ul>
+
+      <h2>인쇄/이미지 다운로드</h2>
+      <ul style="line-height:1.8;">
+        <li><b>이미지 다운로드(PNG)</b>와 <b>인쇄</b>는 수업 자료로 활용하기 좋아요.</li>
+      </ul>
+
+      <hr style="border:0;border-top:1px solid var(--line);margin:18px 0;">
+
+      <div style="opacity:.9; line-height:1.8;">
+        <div>정책 문서:
+          <a href="./privacy.html" style="color:inherit;">개인정보처리방침</a> ·
+          <a href="./terms.html" style="color:inherit;">이용약관</a> ·
+          <a href="./about.html" style="color:inherit;">서비스 소개</a>
+        </div>
+      </div>
+    </section>
+  </main>
 </body>
 </html>

@@ -343,7 +343,7 @@ button.multiline{
   position:relative;
   user-select:none;
   padding: 0 10px;
-  pointer-events:none;
+  pointer-events:auto;
   /* 모바일 탭 UX 개선 */
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -399,7 +399,7 @@ button.multiline{
   font-size:20px;
   font-weight:1000;
   z-index:20;
-  pointer-events:auto;
+  pointer-events: none;
 
   box-shadow: 0 6px 14px rgba(0,0,0,.35);
 }
@@ -407,7 +407,7 @@ button.multiline{
 
 /* hover 가능한 환경에서는 hover로 노출 */
 @media (hover: hover) and (pointer: fine){
-  .seat:hover .actionBadge{ display:flex; pointer-events:auto; }
+  .seat:hover .actionBadge{ display:flex; }
 
 /* 모드(성별/고정)에서는 휴지통/복구 아이콘을 숨김 */
 .stage.mode-gender .seat .actionBadge,
@@ -1296,11 +1296,4 @@ select{
     color:#111827 !important;
     background: rgba(17,24,39,.06) !important;
   }
-}
-
-
-/* Mobile: long-press armed visual */
-.seat.dragArmed{
-  outline: 2px solid rgba(255,255,255,.28);
-  outline-offset: 2px;
 }

@@ -4,12 +4,27 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#0b1220" />
-  <link rel="icon" type="image/png" href="icons/favicon.png">
-  <link rel="stylesheet" href="./styles.css?v=0.85" />
-  <title>사용법 안내 - 자리배치 PWA</title>
+  <link rel="icon" type="image/png" href="icons/favicon.png" />
+  <link rel="manifest" href="./manifest.webmanifest?v=0.86" />
+  <link rel="stylesheet" href="./styles.css?v=0.86" />
+  <title>사용법 | 자리배치 PWA</title>
 </head>
 <body>
-  <header class="top">
+  <header class="header">
+    <div class="headerTop">
+      <div>
+        <h1>사용법</h1>
+        <p class="sub">SeatPlan · 자리배치 PWA <span style="opacity:.65;font-weight:900">v0.86</span></p>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="card" style="padding:18px;">
+      <div style="margin-bottom:12px;">
+        <a href="index.html" class="pill" style="text-decoration:none;">← 앱으로 돌아가기</a>
+      </div>
+      <header class="top">
     <div class="topInner">
       <div class="brand">
         <h1 style="margin:0;line-height:1.1;">자리배치 PWA <span style="opacity:.65;font-weight:900">사용법</span></h1>
@@ -62,5 +77,17 @@
       </div>
     </section>
   </main>
+    </section>
+  </main>
+
+  <footer style="text-align:center; margin:20px 0; font-size:0.9em; color:rgba(255,255,255,0.85);">
+  <a href="index.html" style="color:rgba(255,255,255,0.85);">앱으로</a> |
+  <a href="guide.html" style="color:rgba(255,255,255,0.85);">사용법</a> |
+  <a href="faq.html" style="color:rgba(255,255,255,0.85);">FAQ</a> |
+  <a href="changelog.html" style="color:rgba(255,255,255,0.85);">업데이트</a> |
+  <a href="about.html" style="color:rgba(255,255,255,0.85);">서비스 소개</a> |
+  <a href="privacy.html" style="color:rgba(255,255,255,0.85);">개인정보처리방침</a> |
+  <a href="terms.html" style="color:rgba(255,255,255,0.85);">이용약관</a>
+</footer>
 </body>
 </html>

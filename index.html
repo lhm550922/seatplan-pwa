@@ -8,24 +8,61 @@
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7080369772039977"
      crossorigin="anonymous"></script>
   <link rel="icon" type="image/png" href="icons/favicon.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=0.85" />
-  <link rel="stylesheet" href="./styles.css?v=0.85" />
+  <link rel="manifest" href="./manifest.webmanifest?v=0.86" />
+  <link rel="stylesheet" href="./styles.css?v=0.86" />
   <title>자리배치 PWA</title>
 </head>
 <body>
   <header class="header">
     <div class="headerTop">
       <div>
-        <h1>자리배치 PWA <span style="opacity:.65;font-weight:900">v0.85</span></h1>
-        <p class="sub">책상 배열 → 학생 입력 → (선택사항: 성별/고정좌석/세부 옵션 등) → 자동 배치</p>
+        <h1>자리배치 PWA <span style="opacity:.65;font-weight:900">v0.86</span></h1>
+        <p class="sub">🧑‍🏫 담임교사를 위한 자리배치 도구</p>
       </div>
-      <div class="status">
+      <div class="status" style="display:none" aria-hidden="true">
         <div class="pill">Service Worker: <b id="swStatus">확인 중…</b></div>
       </div>
-    </div>
+</div>
   </header>
 
   <main class="layout">
+
+    <!-- ✅ AdSense/사용자 안내용 소개 섹션 (요약 + 더보기) -->
+    <section class="card" id="siteIntro" style="margin-bottom:14px;">
+<!-- 요약 -->
+      <p style="margin:0 0 10px; line-height:1.55; opacity:.92;">
+        
+        <b>자리배치 PWA</b>로 <b>교실 자리배치</b>를 빠르게 완성하세요. 
+        <b>성별·고정좌석·금지쌍·모둠 수준 분산</b> 같은 조건까지 반영해, 버튼 한 번으로 <b>자동 배치</b>됩니다.<br>
+        모바일/PC 어디서든 열리고(PC권장), <b>저장·공유·인쇄·이미지 다운로드</b>를 지원합니다.
+      </p>
+
+      <p style="margin:0 0 12px; line-height:1.65; opacity:.92;">
+  <span class="hintIcon" aria-hidden="true">💡</span>
+  <b>실행순서 : </b>책상 배열 → 학생 입력 → (선택사항: 성별/고정좌석/세부 옵션 등) → 자동 배치
+</p>
+
+      <button id="toggleIntroBtn" class="ghost smallBtn" type="button" style="margin:0;">자세히 보기 ▾</button>
+
+      <!-- 상세(기본 접힘) -->
+      <div id="introDetails" style="display:none; margin-top:12px;">
+<h3 style="margin:0 0 8px; font-size:1.0rem;">주요 기능</h3>
+        <ul style="margin:0 0 10px; padding-left:18px; line-height:1.65; opacity:.92;">
+          <li>책상 배열: 1인/짝/모둠 형태 선택 및 배치도 생성</li>
+          <li>학생 입력: 이름 + 선택(성별/학습수준) 입력</li>
+          <li>조건 배치: 성별 지정, 고정 좌석, 금지쌍(대각선 포함 옵션)</li>
+          <li>자동 배치: 모둠별 수준 분산(상/중/하) 등 옵션 반영</li>
+          <li>저장/불러오기/공유: 배치도 목록 관리 및 공유 링크 생성</li>
+          <li>내보내기: 이미지 다운로드 / 인쇄 지원</li>
+        </ul>
+
+        <p style="margin:0; line-height:1.55; opacity:.85;">
+          ※ 본 서비스는 교사가 입력한 학생명단/배치도 정보를 <b>사용자의 기기(브라우저 저장소)</b>에 저장하여 동작합니다.
+          공유 링크 사용 시에는 포함될 수 있는 정보(실명 등)에 주의해 주세요.
+        </p>
+      </div>
+    </section>
+
     <section class="card stageWrap">
       <div class="menuBar">
         <div class="menuLeft menuCol">
@@ -87,7 +124,8 @@
         <div id="grid" class="grid" aria-label="자리 배치"></div>
       </div>
 
-      <div id="log" class="log"></div>
+      <button id="toggleLogBtn" class="ghost smallBtn" type="button" style="margin:8px 0;">📝 작업 기록 보기</button>
+<div id="log" class="log" style="display:none;"></div>
       <canvas id="exportCanvas" class="hiddenCanvas"></canvas>
 
       <!-- 내부 렌더 옵션(숨김) -->
@@ -431,13 +469,44 @@
   <!-- ✅ 모둠 드롭다운(잘림 방지용) : 화면 위 레이어 -->
   <div id="groupMenu" class="groupMenu hidden" role="listbox" aria-label="모둠 번호 선택"></div>
 
-  <script src="./app.js?v=0.85"></script>
+  <script src="./app.js?v=0.86"></script>
 
 <footer style="text-align:center; margin:20px 0; font-size:0.9em; color:rgba(255,255,255,0.85);">
+  <a href="guide.html" style="color:rgba(255,255,255,0.85);">사용법</a> |
+  <a href="faq.html" style="color:rgba(255,255,255,0.85);">FAQ</a> |
+  <a href="changelog.html" style="color:rgba(255,255,255,0.85);">업데이트</a> |
+  <a href="about.html" style="color:rgba(255,255,255,0.85);">서비스 소개</a> |
   <a href="privacy.html" style="color:rgba(255,255,255,0.85);">개인정보처리방침</a> |
-  <a href="terms.html" style="color:rgba(255,255,255,0.85);">이용약관</a> |
-  <a href="about.html" style="color:rgba(255,255,255,0.85);">서비스 소개</a>
+  <a href="terms.html" style="color:rgba(255,255,255,0.85);">이용약관</a>
 </footer>
 
+
+<script>
+(function(){
+  const btn = document.getElementById('toggleLogBtn');
+  const log = document.getElementById('log');
+  if(!btn || !log) return;
+  btn.addEventListener('click', function(){
+    const isHidden = getComputedStyle(log).display === 'none';
+    log.style.display = isHidden ? 'block' : 'none';
+    btn.textContent = isHidden ? '📝 작업 기록 숨기기' : '📝 작업 기록 보기';
+  });
+})();
+</script>
+
+<script>
+(function(){
+  // 소개 더보기 토글
+  const btn = document.getElementById('toggleIntroBtn');
+  const details = document.getElementById('introDetails');
+  if (btn && details) {
+    btn.addEventListener('click', function(){
+      const isHidden = getComputedStyle(details).display === 'none';
+      details.style.display = isHidden ? 'block' : 'none';
+      btn.textContent = isHidden ? '접기 ▴' : '자세히 보기 ▾';
+    });
+  }
+})();
+</script>
 </body>
 </html>

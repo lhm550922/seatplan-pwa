@@ -1,4 +1,3 @@
-/* SeatPlan App (v0.88) */
 /* SeatPlan PWA - app.js v0.83
    변경(요청 반영):
    1) 고정 좌석(📌): '고정 좌석' 버튼 클릭 시 각 좌석 좌상단에 작은 핀 아이콘 표시(삭제 아이콘과 동일 크기).
@@ -2098,6 +2097,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
       const el = touchDrag.seatDiv;
       if (el) {
         el.classList.remove("dragging");
+        el.classList.remove("dragArmed");
         el.style.transform = "";
         el.style.zIndex = "";
         el.style.transition = "";
@@ -2115,8 +2115,6 @@ for (let i = 0; i < orderedIds.length; i += size) {
     };
 
     let _suppressNextClickUntil = 0;
-    let _lastSelectAt = 0;
-    let _lastSelectSeatId = null;
     gridEl.addEventListener("pointerdown", (e) => {
       if (!isTouchLike()) return;
       if (uiMode !== "none") return;
@@ -2138,8 +2136,12 @@ for (let i = 0; i < orderedIds.length; i += size) {
 
       // 손가락이 살짝 움직이며 스크롤하려는 경우를 우선: 롱프레스 후에만 자유 드래그
       touchDrag._armT = setTimeout(() => {
-        if (touchDrag && touchDrag.pointerId === e.pointerId) touchDrag.armed = true;
-      }, 180);
+        if (touchDrag && touchDrag.pointerId === e.pointerId) {
+          touchDrag.armed = true;
+          // 드래그 준비 상태에서는 스크롤 제스처보다 이동/교체를 우선
+          touchDrag.seatDiv?.classList?.add?.("dragArmed");
+        }
+      }, 320);
     });
 
     gridEl.addEventListener("pointermove", (e) => {
@@ -2165,21 +2167,11 @@ for (let i = 0; i < orderedIds.length; i += size) {
         // ✅ 아직 드래그로 확정 전이면 스크롤을 방해하지 않음
         if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
 
-        // ✅ 세로 스와이프는 스크롤로 해석(롱프레스 전에는 드래그 시작 안 함)
-        const adx = Math.abs(dx), ady = Math.abs(dy);
-        if (!touchDrag.armed && ady > adx * 1.2) {
-          // 스크롤 의도: 드래그 취소하고 기본 스크롤 허용
-          resetTouchDragVisual();
-          return;
-        }
-
-        // ✅ 롱프레스(armed) 전에는 드래그/교체 시작 금지
+        // ✅ 반드시 '롱프레스'가 된 뒤에만 드래그 시작
+        // (롱프레스 전 이동/교체가 시작되면 오작동/오터치가 발생할 수 있음)
         if (!touchDrag.armed) {
-          // 충분히 움직였으면 스크롤 의도로 보고 드래그 후보를 해제
-          if (Math.hypot(dx, dy) >= DRAG_THRESHOLD) {
-            resetTouchDragVisual();
-            touchDrag = null;
-          }
+          // 스크롤/탭 의도: 드래그로 전환하지 않고 종료
+          resetTouchDragVisual();
           return;
         }
 
@@ -2213,7 +2205,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
 
       // ✅ 드래그 중에만 기본 스크롤/줌을 막음
       if (touchDrag.moved) e.preventDefault();
-    });
+    }, { passive: false });
 
     const finishTouchDrag = (e) => {
       if (!isTouchLike()) return;
@@ -2237,11 +2229,9 @@ for (let i = 0; i < orderedIds.length; i += size) {
         return;
       }
 
-      // 드래그가 아니라면: 탭은 "선택/해제"만 (모바일에서는 탭-탭 교체를 하지 않음)
+      // 드래그가 아니라면: 탭은 '선택/해제'만 (모바일 탭-탭 교체는 제거)
       if (!didMove) {
         selectedSeatId = (selectedSeatId === id) ? null : id;
-        _lastSelectAt = Date.now();
-        _lastSelectSeatId = selectedSeatId;
         closeGroupMenu();
         renderGrid();
       }
@@ -2259,8 +2249,8 @@ for (let i = 0; i < orderedIds.length; i += size) {
     // 클릭 처리(모드/아이콘/모둠 메뉴)
     gridEl.addEventListener("click", (e) => {
       if (isTouchLike() && Date.now() < _suppressNextClickUntil) {
-        // 터치에서 pointerup 처리와 click이 중복되며(특히 아이콘이 새로 나타난 자리), 의도치 않은 즉시 실행을 방지
-        return;
+        // 터치에서 pointerup 처리와 click이 중복되며 UI가 두 번 바뀌는 것을 방지
+        if (!e.target.closest("[data-action]")) return;
       }
       const seatDiv = e.target.closest(".seat");
       if (!seatDiv) return;
@@ -2272,19 +2262,6 @@ for (let i = 0; i < orderedIds.length; i += size) {
       const actionEl = e.target.closest("[data-action]");
       if (actionEl) {
         const act = actionEl.dataset.action;
-
-        // ✅ 터치 환경: 아이콘(삭제/복구/핀/모둠)을 '선택 후'에만 실행
-        // - 첫 탭이 아이콘 영역이어도, 바로 실행되지 않고 좌석 선택(showActions)만 되도록 처리
-        if (isTouchLike() && uiMode === "none" && ["delete","restore","pinToggle","groupMenu"].includes(act) && selectedSeatId !== id) {
-          selectedSeatId = id;
-          closeGroupMenu();
-          renderGrid();
-          return;
-        }
-        // ✅ 방금 선택으로 인해 아이콘이 나타난 직후 발생하는 "동일 탭의 click"은 무시 (즉시 삭제/복구 방지)
-        if (isTouchLike() && uiMode === "none" && ["delete","restore","pinToggle","groupMenu"].includes(act) && _lastSelectSeatId === id && (Date.now() - _lastSelectAt) < 260) {
-          return;
-        }
 
         // 성별 지정 모드 버튼
         if (act === "genderSet") {
@@ -2345,8 +2322,8 @@ for (let i = 0; i < orderedIds.length; i += size) {
       if (uiMode !== "none") return;
 
       // 터치 환경:
-      // - 탭 1회: 해당 좌석 선택(아이콘 표시)
-      // - 좌석 이동/교체는 '롱프레스 후 드래그'로만 수행
+      // - 탭 1회: 해당 좌석의 아이콘(삭제/복구 등) 표시
+      // - 자리 이동/교체는 '꾹 누른 뒤 드래그'로만 가능
       if (isTouchLike()) {
         selectedSeatId = (selectedSeatId === id) ? null : id;
         closeGroupMenu();

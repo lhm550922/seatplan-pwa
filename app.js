@@ -2115,6 +2115,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
     };
 
     let _suppressNextClickUntil = 0;
+    let _lastTouchSelect = { id: null, ts: 0, wasOpen: false };
     gridEl.addEventListener("pointerdown", (e) => {
       if (!isTouchLike()) return;
       if (uiMode !== "none") return;
@@ -2137,7 +2138,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
       // 손가락이 살짝 움직이며 스크롤하려는 경우를 우선: 롱프레스 후에만 자유 드래그
       touchDrag._armT = setTimeout(() => {
         if (touchDrag && touchDrag.pointerId === e.pointerId) touchDrag.armed = true;
-      }, 180);
+      }, 320);
     });
 
     gridEl.addEventListener("pointermove", (e) => {
@@ -2160,23 +2161,32 @@ for (let i = 0; i < orderedIds.length; i += size) {
 
 
       if (!touchDrag.moved) {
-        // ✅ 롱프레스 전에는 드래그 시작 금지 (스크롤/탭 의도 보호)
-        if (!touchDrag.armed && Math.hypot(dx, dy) >= DRAG_THRESHOLD) {
-          resetTouchDragVisual();
-          return;
-        }
-        // ✅ 아직 드래그로 확정 전이면 스크롤을 방해하지 않음
-        if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
-
-        // ✅ 세로 스와이프는 스크롤로 해석(롱프레스 전에는 드래그 시작 안 함)
+        const dist = Math.hypot(dx, dy);
         const adx = Math.abs(dx), ady = Math.abs(dy);
-        if (!touchDrag.armed && ady > adx * 1.2) {
-          // 스크롤 의도: 드래그 취소하고 기본 스크롤 허용
-          resetTouchDragVisual();
+
+        // ✅ 롱프레스 전에는 작은 손떨림(jitter)로 드래그가 취소되지 않게 보호
+        //    - 충분히 큰 세로 스와이프만 '스크롤 의도'로 보고 취소
+        const PRE_ARM_JITTER = 14;   // px (가벼운 흔들림 무시)
+        const PRE_ARM_CANCEL = 22;   // px (스크롤로 판단할 최소 이동)
+
+        if (!touchDrag.armed) {
+          if (dist < PRE_ARM_JITTER) return;
+
+          // 세로로 크게 움직이면 스크롤 의도 → 드래그 후보 취소(기본 스크롤 허용)
+          if (ady > adx * 1.2 && dist >= PRE_ARM_CANCEL) {
+            resetTouchDragVisual();
+            return;
+          }
+
+          // 아직 롱프레스 전이면 드래그 시작은 금지(아이콘 오작동/스크롤 방해 방지)
           return;
         }
+
+        // ✅ 롱프레스 후에만 드래그 시작 가능
+        if (dist < DRAG_THRESHOLD) return;
 
         touchDrag.moved = true;
+
         // 드래그 확정: 이제부터만 캡처/비주얼/기본동작 차단
         try { el?.setPointerCapture?.(touchDrag.pointerId); } catch {}
         if (el) {
@@ -2230,16 +2240,19 @@ for (let i = 0; i < orderedIds.length; i += size) {
         return;
       }
 
-      // 드래그가 아니라면: 탭 1회 = 선택(아이콘 표시)만
-      if (!didMove) {
-        selectedSeatId = (selectedSeatId === id) ? null : id;
-        closeGroupMenu();
-        renderGrid();
-      }
+      
+// 드래그가 아니라면: 탭 1회 = 선택(아이콘 표시)만
+if (!didMove) {
+  const wasOpen = (selectedSeatId === id);
+  selectedSeatId = wasOpen ? null : id;
+  _lastTouchSelect = { id, ts: Date.now(), wasOpen };
+  closeGroupMenu();
+  renderGrid();
+}
 
       resetTouchDragVisual();
       // ✅ 탭/드래그 처리 후 click 중복 방지
-      _suppressNextClickUntil = Date.now() + 500;
+      _suppressNextClickUntil = Date.now() + 80;
       e.preventDefault();
       e.stopPropagation();
     };
@@ -2250,8 +2263,10 @@ for (let i = 0; i < orderedIds.length; i += size) {
     // 클릭 처리(모드/아이콘/모둠 메뉴)
     gridEl.addEventListener("click", (e) => {
       if (isTouchLike() && Date.now() < _suppressNextClickUntil) {
-        // 터치에서 pointerup 처리와 click이 중복되며 UI가 두 번 바뀌는 것을 방지
-        if (!e.target.closest("[data-action]")) return;
+        // pointerup에서 이미 처리했으므로, 동일 제스처에서 이어지는 click(특히 아이콘)을 무시
+        e.preventDefault();
+        e.stopPropagation();
+        return;
       }
       const seatDiv = e.target.closest(".seat");
       if (!seatDiv) return;
@@ -2262,6 +2277,13 @@ for (let i = 0; i < orderedIds.length; i += size) {
 
       const actionEl = e.target.closest("[data-action]");
       if (actionEl) {
+        // 터치에서는: 아이콘은 "선택된 좌석(showActions)"에서만 실행
+        if (isTouchLike() && !seatDiv.classList.contains("showActions")) {
+          selectedSeatId = id;
+          closeGroupMenu();
+          renderGrid();
+          return;
+        }
         const act = actionEl.dataset.action;
 
         // 성별 지정 모드 버튼

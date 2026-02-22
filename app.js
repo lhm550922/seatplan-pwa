@@ -1,4 +1,4 @@
-/* SeatPlan App (v0.86) */
+/* SeatPlan App (v0.87) */
 /* SeatPlan PWA - app.js v0.83
    변경(요청 반영):
    1) 고정 좌석(📌): '고정 좌석' 버튼 클릭 시 각 좌석 좌상단에 작은 핀 아이콘 표시(삭제 아이콘과 동일 크기).
@@ -2269,6 +2269,15 @@ for (let i = 0; i < orderedIds.length; i += size) {
       if (actionEl) {
         const act = actionEl.dataset.action;
 
+        // ✅ 터치 환경: 아이콘(삭제/복구/핀/모둠)을 '선택 후'에만 실행
+        // - 첫 탭이 아이콘 영역이어도, 바로 실행되지 않고 좌석 선택(showActions)만 되도록 처리
+        if (isTouchLike() && uiMode === "none" && ["delete","restore","pinToggle","groupMenu"].includes(act) && selectedSeatId !== id) {
+          selectedSeatId = id;
+          closeGroupMenu();
+          renderGrid();
+          return;
+        }
+
         // 성별 지정 모드 버튼
         if (act === "genderSet") {
           if (uiMode !== "gender") return;
@@ -2328,22 +2337,12 @@ for (let i = 0; i < orderedIds.length; i += size) {
       if (uiMode !== "none") return;
 
       // 터치 환경:
-      // - 탭 1회: 해당 좌석의 아이콘(삭제/복구 등) 표시
-      // - 다른 좌석을 탭: 좌석 이동/교체(탭-탭 방식)
+      // - 탭 1회: 해당 좌석 선택(아이콘 표시)
+      // - 좌석 이동/교체는 '롱프레스 후 드래그'로만 수행
       if (isTouchLike()) {
-        if (selectedSeatId != null && selectedSeatId !== id) {
-          const fromId = selectedSeatId;
-          swapSeatState(fromId, id);
-          selectedSeatId = null;
-          closeGroupMenu();
-          computeViolations();
-          renderGrid();
-          log(`좌석 교체: 좌석 ${fromId + 1} ↔ 좌석 ${id + 1}`);
-        } else {
-          selectedSeatId = (selectedSeatId === id) ? null : id;
-          closeGroupMenu();
-          renderGrid();
-        }
+        selectedSeatId = (selectedSeatId === id) ? null : id;
+        closeGroupMenu();
+        renderGrid();
         return;
       }
 

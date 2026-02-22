@@ -1,4 +1,4 @@
-/* SeatPlan App (v0.87) */
+/* SeatPlan App (v0.88) */
 /* SeatPlan PWA - app.js v0.83
    변경(요청 반영):
    1) 고정 좌석(📌): '고정 좌석' 버튼 클릭 시 각 좌석 좌상단에 작은 핀 아이콘 표시(삭제 아이콘과 동일 크기).
@@ -2115,6 +2115,8 @@ for (let i = 0; i < orderedIds.length; i += size) {
     };
 
     let _suppressNextClickUntil = 0;
+    let _lastSelectAt = 0;
+    let _lastSelectSeatId = null;
     gridEl.addEventListener("pointerdown", (e) => {
       if (!isTouchLike()) return;
       if (uiMode !== "none") return;
@@ -2168,6 +2170,16 @@ for (let i = 0; i < orderedIds.length; i += size) {
         if (!touchDrag.armed && ady > adx * 1.2) {
           // 스크롤 의도: 드래그 취소하고 기본 스크롤 허용
           resetTouchDragVisual();
+          return;
+        }
+
+        // ✅ 롱프레스(armed) 전에는 드래그/교체 시작 금지
+        if (!touchDrag.armed) {
+          // 충분히 움직였으면 스크롤 의도로 보고 드래그 후보를 해제
+          if (Math.hypot(dx, dy) >= DRAG_THRESHOLD) {
+            resetTouchDragVisual();
+            touchDrag = null;
+          }
           return;
         }
 
@@ -2225,21 +2237,13 @@ for (let i = 0; i < orderedIds.length; i += size) {
         return;
       }
 
-      // 드래그가 아니라면: 탭 선택/탭-탭 교체(기존 UX)
+      // 드래그가 아니라면: 탭은 "선택/해제"만 (모바일에서는 탭-탭 교체를 하지 않음)
       if (!didMove) {
-        if (selectedSeatId != null && selectedSeatId !== id) {
-          const fromId = selectedSeatId;
-          swapSeatState(fromId, id);
-          selectedSeatId = null;
-          closeGroupMenu();
-          computeViolations();
-          renderGrid();
-          log(`좌석 교체: 좌석 ${fromId + 1} ↔ 좌석 ${id + 1}`);
-        } else {
-          selectedSeatId = (selectedSeatId === id) ? null : id;
-          closeGroupMenu();
-          renderGrid();
-        }
+        selectedSeatId = (selectedSeatId === id) ? null : id;
+        _lastSelectAt = Date.now();
+        _lastSelectSeatId = selectedSeatId;
+        closeGroupMenu();
+        renderGrid();
       }
 
       resetTouchDragVisual();
@@ -2255,8 +2259,8 @@ for (let i = 0; i < orderedIds.length; i += size) {
     // 클릭 처리(모드/아이콘/모둠 메뉴)
     gridEl.addEventListener("click", (e) => {
       if (isTouchLike() && Date.now() < _suppressNextClickUntil) {
-        // 터치에서 pointerup 처리와 click이 중복되며 UI가 두 번 바뀌는 것을 방지
-        if (!e.target.closest("[data-action]")) return;
+        // 터치에서 pointerup 처리와 click이 중복되며(특히 아이콘이 새로 나타난 자리), 의도치 않은 즉시 실행을 방지
+        return;
       }
       const seatDiv = e.target.closest(".seat");
       if (!seatDiv) return;
@@ -2275,6 +2279,10 @@ for (let i = 0; i < orderedIds.length; i += size) {
           selectedSeatId = id;
           closeGroupMenu();
           renderGrid();
+          return;
+        }
+        // ✅ 방금 선택으로 인해 아이콘이 나타난 직후 발생하는 "동일 탭의 click"은 무시 (즉시 삭제/복구 방지)
+        if (isTouchLike() && uiMode === "none" && ["delete","restore","pinToggle","groupMenu"].includes(act) && _lastSelectSeatId === id && (Date.now() - _lastSelectAt) < 260) {
           return;
         }
 

@@ -407,7 +407,7 @@ button.multiline{
 
 /* hover 가능한 환경에서는 hover로 노출 */
 @media (hover: hover) and (pointer: fine){
-  .seat:hover .actionBadge{ display:flex; }
+  .seat:hover .actionBadge{ display:flex; pointer-events:auto; }
 
 /* 모드(성별/고정)에서는 휴지통/복구 아이콘을 숨김 */
 .stage.mode-gender .seat .actionBadge,
@@ -435,16 +435,16 @@ button.multiline{
   font-size:18px;
   font-weight:1000;
   z-index:20;
-  pointer-events:none;
-  box-shadow: 0 6px 14px rgba(0,0,0,.35);
+    box-shadow: 0 6px 14px rgba(0,0,0,.35);
+
+  pointer-events: none;
 }
 .moveBadge:hover{ background: rgba(59,130,246,.12); }
 .seat.showActions .moveBadge{ display:flex; pointer-events:auto; }
 
 /* 모바일 이동 모드(A안): 아이콘 모두 숨김 */
 .stage.moveMode .seat .actionBadge,
-.stage.moveMode .seat .moveBadge{ display:none !important; }
-
+.stage.moveMode 
 /* 이동 준비 자리 강조 */
 .seat.moveArmed{ outline: 3px solid rgba(59,130,246,.95); outline-offset: 2px; }
 

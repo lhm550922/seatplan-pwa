@@ -258,18 +258,20 @@
   }
 
 const isTouchLike = () =>
-    (window.matchMedia && window.matchMedia("(hover: none)").matches) ||
-    ("ontouchstart" in window) ||
+    (window.matchMedia && (window.matchMedia("(hover: none)").matches || window.matchMedia("(any-hover: none)").matches)) ||
     (navigator.maxTouchPoints || 0) > 0;
 
   
   // ✅ Mobile-only UI 판단(PC/트랙패드/하이브리드 오탐 최소화)
   const isMobileUI = () => {
     const mm = window.matchMedia;
-    const coarse = mm && mm("(pointer: coarse)").matches;
-    const noHover = mm && mm("(hover: none)").matches;
+    const coarse = !!(mm && (mm("(pointer: coarse)").matches || mm("(any-pointer: coarse)").matches));
+    const noHover = !!(mm && (mm("(hover: none)").matches || mm("(any-hover: none)").matches));
     const tp = (navigator.maxTouchPoints || 0) > 0;
-    return (coarse && noHover) || (coarse && tp);
+    const small = Math.min(window.innerWidth || 9999, window.innerHeight || 9999) <= 900;
+    // ✅ 데스크톱(마우스/트랙패드) 오탐 방지: 'coarse' + 'noHover'가 핵심.
+    // 하이브리드 기기에서는 화면이 충분히 작을 때만 모바일 UI로 간주.
+    return (coarse && noHover) || (tp && coarse && small);
   };
 
   // 모바일: 첫 탭으로 아이콘 실행되는 것을 막기 위한 억제 타이머

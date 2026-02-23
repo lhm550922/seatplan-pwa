@@ -219,23 +219,11 @@
       centerToastEl.style.transform = "translate(-50%, -50%) scale(0.98)";
       // transition 이후 완전 투명 상태 유지(요소는 남겨둠)
     }, 1800);
-  
-  // ===== Mobile move hint (A-mode) =====
-  let moveHintEl = null;
-  function setMoveHint(on) {
-    if (!moveHintEl) {
-      moveHintEl = document.createElement("div");
-      moveHintEl.id = "moveHint";
-      moveHintEl.className = "moveHint";
-      moveHintEl.textContent = "이동한 위치를 선택하세요.";
-      document.body.appendChild(moveHintEl);
-    }
-    moveHintEl.classList.toggle("show", !!on);
   }
-}
 
   const isTouchLike = () =>
     (window.matchMedia && window.matchMedia("(hover: none)").matches) ||
+    ("ontouchstart" in window) ||
     (navigator.maxTouchPoints || 0) > 0;
 
   
@@ -690,10 +678,8 @@
 
   let boardAtTop = true;
   let uiMode = "none";       // none | gender | pin
-  let selectedSeatId = null;
-  let moveFromSeatId = null; // 모바일 이동 모드 출발 좌석
-  let lastSwapPair = null; // {a,b,until}
- // 터치 환경에서 아이콘 표시용
+  let selectedSeatId = null; // 터치 환경에서 아이콘 표시용
+  let moveFromSeatId = null; // 모바일 이동(A안)
   let dragSrcId = null;
 
   let layoutKind = "single";
@@ -1454,9 +1440,6 @@ for (let i = 0; i < orderedIds.length; i += size) {
     if (!stageEl) return;
 
     stageEl.classList.remove("mode-gender", "mode-pin");
-    stageEl.classList.remove("moveMode");
-    if (isTouchLike() && moveFromSeatId != null) { stageEl.classList.add("moveMode"); setMoveHint(true); }
-    else { setMoveHint(false); }
     if (modeGenderBtn) modeGenderBtn.classList.remove("activeMode");
     if (modePinBtn) modePinBtn.classList.remove("activeMode");
 
@@ -1499,6 +1482,31 @@ for (let i = 0; i < orderedIds.length; i += size) {
   function clearShowActionsAll() {
     if (!gridEl) return;
     gridEl.querySelectorAll(".seat.showActions").forEach((el) => el.classList.remove("showActions"));
+  }
+
+  function setMoveFromOnSeat(id, on) {
+    if (!gridEl) return;
+    const seatDiv = gridEl.querySelector(`.seat[data-seat-id="${id}"]`);
+    if (!seatDiv) return;
+    seatDiv.classList.toggle("moveFrom", !!on);
+  }
+  function clearMoveFromAll() {
+    if (!gridEl) return;
+    gridEl.querySelectorAll(".seat.moveFrom").forEach((el) => el.classList.remove("moveFrom"));
+  }
+
+
+
+  // ✅ 좌석 교체(이동) 시 짧은 시각 효과
+  function flashSeats(ids) {
+    if (!gridEl) return;
+    for (const sid of (ids || [])) {
+      const el = gridEl.querySelector(`.seat[data-seat-id="${sid}"]`);
+      if (!el) continue;
+      el.classList.add("swapFlash");
+      clearTimeout(el._flashT);
+      el._flashT = setTimeout(() => el.classList.remove("swapFlash"), 420);
+    }
   }
 
   function applyGridTemplateForPair(seatW, gap, extra) {
@@ -1575,7 +1583,9 @@ for (let i = 0; i < orderedIds.length; i += size) {
     // 터치: selectedSeatId만 showActions
     if (isTouchLike()) {
       clearShowActionsAll();
+      clearMoveFromAll();
       if (selectedSeatId != null) setShowActionsOnSeat(selectedSeatId, true);
+      if (moveFromSeatId != null) setMoveFromOnSeat(moveFromSeatId, true);
     }
 
     // 모둠 메뉴가 열린 상태면 위치 재계산(스크롤/리렌더 대응)
@@ -1614,15 +1624,6 @@ for (let i = 0; i < orderedIds.length; i += size) {
     div.className = "seat";
     div.dataset.seatId = String(seat.id);
 
-    const touchUI = isTouchLike();
-    if (touchUI && uiMode === "none") {
-      if (selectedSeatId === seat.id) div.classList.add("showActions");
-      if (moveFromSeatId === seat.id) div.classList.add("moveFrom");
-      if (lastSwapPair && Date.now() < lastSwapPair.until && (seat.id === lastSwapPair.a || seat.id === lastSwapPair.b)) {
-        div.classList.add("swapFlash");
-      }
-    }
-
     if (seat.locked) div.classList.add("locked");
     if (seat.void) div.classList.add("void");
     if (vioSet.has(seat.id)) div.classList.add("violation");
@@ -1646,15 +1647,6 @@ for (let i = 0; i < orderedIds.length; i += size) {
     pin.textContent = "📌";
     div.appendChild(pin);
 
-
-    // ✅ (모바일) 이동 배지(삭제/복구 왼쪽) - 터치에서만 표시
-    const moveBtn = document.createElement("div");
-    moveBtn.className = "moveBadge";
-    moveBtn.dataset.action = "move";
-    moveBtn.textContent = "↔";
-    moveBtn.title = "자리 이동";
-    div.appendChild(moveBtn);
-
     // ✅ 우상단 삭제/복구
     const action = document.createElement("div");
     action.className = "actionBadge";
@@ -1662,6 +1654,15 @@ for (let i = 0; i < orderedIds.length; i += size) {
     action.textContent = seat.void ? "↩" : "🗑";
     action.title = seat.void ? "통로(삭제) 자리 복구" : "좌석 삭제(통로 만들기)";
     div.appendChild(action);
+
+    // ✅ 모바일 자리 이동(A안) 아이콘(삭제 아이콘 왼쪽)
+    const move = document.createElement("div");
+    move.className = "moveBadge";
+    move.dataset.action = "moveStart";
+    move.textContent = "↔";
+    move.title = "자리 이동(교체)";
+    if (seat.void) move.classList.add("hidden");
+    div.appendChild(move);
 
     // ✅ 모둠 태그: showGroups 체크면 항상 표시(통로 제외)
     if (showGroups && showGroups.checked && !seat.void && uiMode !== "gender" && uiMode !== "pin") {
@@ -2266,36 +2267,9 @@ for (let i = 0; i < orderedIds.length; i += size) {
         return;
       }
 
-      // 드래그가 아니라면: 탭 처리
+      // 드래그가 아니라면: 탭 1회 = 선택(아이콘 표시)만
       if (!didMove) {
-        // ✅ 모바일 이동 모드: 목적지 선택하면 즉시 교체
-                if (moveFromSeatId != null && id === moveFromSeatId) {
-          // 같은 좌석을 다시 누르면 이동 모드 취소
-          moveFromSeatId = null;
-          selectedSeatId = null;
-          renderGrid();
-          resetTouchDragVisual();
-          return;
-        }
-if (moveFromSeatId != null && id !== moveFromSeatId) {
-          swapSeatState(moveFromSeatId, id);
-          lastSwapPair = { a: moveFromSeatId, b: id, until: Date.now() + 650 };
-          moveFromSeatId = null;
-          selectedSeatId = null;
-          closeGroupMenu();
-          computeViolations();
-          renderGrid();
-          log(`이동(교체): 좌석 ${lastSwapPair.a + 1} ↔ 좌석 ${lastSwapPair.b + 1}`);
-          resetTouchDragVisual();
-          return;
-        }
-
-        // 탭 1회 = 선택(아이콘 표시)만
         selectedSeatId = (selectedSeatId === id) ? null : id;
-        closeGroupMenu();
-        renderGrid();
-      }
-
         closeGroupMenu();
         renderGrid();
       }
@@ -2313,8 +2287,8 @@ if (moveFromSeatId != null && id !== moveFromSeatId) {
     // 클릭 처리(모드/아이콘/모둠 메뉴)
     gridEl.addEventListener("click", (e) => {
       if (isTouchLike() && Date.now() < _suppressNextClickUntil) {
-        // ✅ 모바일: 첫 터치(선택)와 동일 제스처에서 발생하는 click은 모두 무시
-        return;
+        // 터치에서 pointerup 처리와 click이 중복되며 UI가 두 번 바뀌는 것을 방지
+        if (!e.target.closest("[data-action]")) return;
       }
       const seatDiv = e.target.closest(".seat");
       if (!seatDiv) return;
@@ -2326,6 +2300,32 @@ if (moveFromSeatId != null && id !== moveFromSeatId) {
       const actionEl = e.target.closest("[data-action]");
       if (actionEl) {
         const act = actionEl.dataset.action;
+
+        // ✅ 모바일: 첫 터치에서 아이콘 실행 금지(선택 후, 다음 터치에서 실행)
+        if (isTouchLike()) {
+          // 이동 모드에서는 다른 액션 실행 금지(목적지 선택만)
+          if (moveFromSeatId != null) return;
+
+          // 선택되지 않은 좌석에서 아이콘을 눌렀다면 실행하지 말고 선택만
+          if (selectedSeatId !== id) {
+            selectedSeatId = id;
+            closeGroupMenu();
+            renderGrid();
+            return;
+          }
+        }
+
+        // ✅ 모바일 이동(A안): 이동 시작(↔)
+        if (act === "moveStart") {
+          if (!isTouchLike()) return;
+          if (seat.void) return;
+          moveFromSeatId = id;
+          selectedSeatId = null;
+          closeGroupMenu();
+          renderGrid();
+          toast("이동한 위치를 선택하세요.");
+          return;
+        }
 
         // 성별 지정 모드 버튼
         if (act === "genderSet") {
@@ -2340,18 +2340,6 @@ if (moveFromSeatId != null && id !== moveFromSeatId) {
         // 고정핀 (모드 상관없이: 고정된 핀은 항상 클릭으로 해제 가능)
         if (act === "pinToggle") {
           togglePin(seat);
-          return;
-        }
-
-
-        // ✅ 모바일: 이동 모드(A안) 시작
-        if (act === "move") {
-          if (!isTouchLike()) return; // PC는 원래 동작 유지(이동 아이콘 자체를 표시하지 않음)
-          // 선택되지 않은 좌석에서 눌렀으면 먼저 선택만
-          if (selectedSeatId !== id) { selectedSeatId = id; renderGrid(); return; }
-          moveFromSeatId = id;
-          selectedSeatId = null;
-          renderGrid();
           return;
         }
 
@@ -2401,25 +2389,35 @@ if (moveFromSeatId != null && id !== moveFromSeatId) {
 
       // 터치 환경:
       // - 탭 1회: 해당 좌석의 아이콘(삭제/복구 등) 표시
-      // - 다른 좌석을 탭: 좌석 이동/교체(탭-탭 방식)
+      // - 이동 모드(↔): '이동한 위치' 탭 시 즉시 교체
       if (isTouchLike()) {
-        if (selectedSeatId != null && selectedSeatId !== id) {
-          const fromId = selectedSeatId;
+        // ✅ 이동 모드: 목적지 선택
+        if (moveFromSeatId != null) {
+          const fromId = moveFromSeatId;
+          if (fromId === id) {
+            // 같은 자리 탭: 이동 취소
+            moveFromSeatId = null;
+            renderGrid();
+            return;
+          }
           swapSeatState(fromId, id);
+          moveFromSeatId = null;
           selectedSeatId = null;
           closeGroupMenu();
           computeViolations();
           renderGrid();
-          log(`좌석 교체: 좌석 ${fromId + 1} ↔ 좌석 ${id + 1}`);
-        } else {
-          selectedSeatId = (selectedSeatId === id) ? null : id;
-          closeGroupMenu();
-          renderGrid();
+          try { flashSeats([fromId, id]); } catch {}
+          log(`좌석 교체(이동): 좌석 ${fromId + 1} ↔ 좌석 ${id + 1}`);
+          return;
         }
+
+        // ✅ 기본: 선택/해제(아이콘 표시)
+        selectedSeatId = (selectedSeatId === id) ? null : id;
+        closeGroupMenu();
+        renderGrid();
         return;
       }
-
-      // 데스크탑: 기본은 아무 동작 없음 (hover로 삭제 노출)
+// 데스크탑: 기본은 아무 동작 없음 (hover로 삭제 노출)
     });
   }
 

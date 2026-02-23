@@ -1621,6 +1621,14 @@ for (let i = 0; i < orderedIds.length; i += size) {
     pin.textContent = "📌";
     div.appendChild(pin);
 
+    // ✅ 이동 배지(모바일: 이동 모드) — 삭제/복구 아이콘 왼쪽에 배치
+    const move = document.createElement("div");
+    move.className = "moveBadge";
+    move.dataset.action = "move";
+    move.textContent = "↔";
+    move.title = "자리 이동(모바일: 이동 모드)";
+    div.appendChild(move);
+
     // ✅ 우상단 삭제/복구
     const action = document.createElement("div");
     action.className = "actionBadge";
@@ -1628,14 +1636,6 @@ for (let i = 0; i < orderedIds.length; i += size) {
     action.textContent = seat.void ? "↩" : "🗑";
     action.title = seat.void ? "통로(삭제) 자리 복구" : "좌석 삭제(통로 만들기)";
     div.appendChild(action);
-
-    // ✅ 이동 배지(모바일: 이동 모드)
-    const move = document.createElement("div");
-    move.className = "moveBadge";
-    move.dataset.action = "move";
-    move.textContent = "↔";
-    move.title = "자리 이동(모바일: 이동 모드)";
-    div.appendChild(move);
 
     // ✅ 모둠 태그: showGroups 체크면 항상 표시(통로 제외)
     if (showGroups && showGroups.checked && !seat.void && uiMode !== "gender" && uiMode !== "pin") {
@@ -2249,7 +2249,8 @@ for (let i = 0; i < orderedIds.length; i += size) {
 
       resetTouchDragVisual();
       // ✅ 탭/드래그 처리 후 click 중복 방지
-      _suppressNextClickUntil = Date.now() + 500;
+      // 모바일에서 같은 탭으로 아이콘이 실행되는 것을 더 확실히 차단
+      _suppressNextClickUntil = Date.now() + 700;
       e.preventDefault();
       e.stopPropagation();
     };
@@ -2259,9 +2260,13 @@ for (let i = 0; i < orderedIds.length; i += size) {
 
     // 클릭 처리(모드/아이콘/모둠 메뉴)
     gridEl.addEventListener("click", (e) => {
+      // ✅ 모바일: 같은 탭 제스처에서 이어지는 click(특히 아이콘 위치 탭)을 모두 무시
+      // - pointerup에서 선택(showActions) 처리 직후 click이 아이콘으로 떨어지며
+      //   삭제/복구가 "바로" 실행되는 문제를 차단한다.
       if (isTouchLike() && Date.now() < _suppressNextClickUntil) {
-        // 터치에서 pointerup 처리와 click이 중복되며 UI가 두 번 바뀌는 것을 방지
-        if (!e.target.closest("[data-action]")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
       }
       const seatDiv = e.target.closest(".seat");
       if (!seatDiv) return;

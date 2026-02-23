@@ -1,4 +1,4 @@
-/* SeatPlan App (v0.86) */
+/* SeatPlan App (v0.89) */
 /* SeatPlan PWA - app.js v0.83
    변경(요청 반영):
    1) 고정 좌석(📌): '고정 좌석' 버튼 클릭 시 각 좌석 좌상단에 작은 핀 아이콘 표시(삭제 아이콘과 동일 크기).
@@ -26,6 +26,7 @@
 
   const autoFillBtn = $("autoFillBtn");
   const clearBtn = $("clearBtn");
+  const undoBtn = $("undoBtn");
   const downloadPngBtn = $("downloadPngBtn");
   const printBtn = $("printBtn");
 
@@ -162,7 +163,46 @@
     toastEl._t = setTimeout(() => toastEl.classList.remove("show"), 1300);
   }
 
-  function centerToast(msg) {
+  
+  // ===== Undo (1-step+) =====
+  // - PC/모바일 공통 '이전' 버튼
+  // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
+  let undoStack = [];
+  const UNDO_MAX = 30;
+
+  function pushUndo(reason) {
+    try {
+      const snap = currentSnapshot();
+      // deep copy via JSON to detach references
+      const raw = JSON.stringify(snap);
+      undoStack.push(raw);
+      if (undoStack.length > UNDO_MAX) undoStack.shift();
+      if (undoBtn) undoBtn.disabled = (undoStack.length === 0);
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  function doUndo() {
+    if (!undoStack.length) { toast("되돌릴 내용이 없어요."); return; }
+    let raw = undoStack.pop();
+    try {
+      const snap = JSON.parse(raw);
+      applySnapshot(snap);
+      uiMode = "none";
+      selectedSeatId = null;
+      moveFromSeatId = null;
+      closeGroupMenu();
+      computeViolations();
+      renderGrid();
+      toast("한 단계 이전으로 되돌렸어요.");
+    } catch (e) {
+      toast("되돌리기에 실패했어요.");
+    }
+    if (undoBtn) undoBtn.disabled = (undoStack.length === 0);
+  }
+
+function centerToast(msg) {
     if (!centerToastEl) {
       centerToastEl = document.createElement("div");
       centerToastEl.className = "centerToast";
@@ -2120,7 +2160,8 @@ for (let i = 0; i < orderedIds.length; i += size) {
 
       gridEl.querySelectorAll(".seat.dragOver").forEach((x)=>x.classList.remove("dragOver"));
 
-      if (!swapSeatState(srcId, dstId)) return;
+      pushUndo("swap");
+      if (!swapSeatState(srcId, dstId)) { undoStack.pop(); if (undoBtn) undoBtn.disabled = (undoStack.length===0); return; }
 
       selectedSeatId = null;
       computeViolations();
@@ -2283,6 +2324,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
       const didMove = moved && (Math.abs(touchDrag.dx) > DRAG_THRESHOLD || Math.abs(touchDrag.dy) > DRAG_THRESHOLD);
 
       if (didMove && overId != null && overId !== id) {
+        pushUndo("swap");
         swapSeatState(id, overId);
         selectedSeatId = null;
         closeGroupMenu();
@@ -2312,6 +2354,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
             closeGroupMenu();
             renderGrid();
           } else {
+            pushUndo("swap");
             swapSeatState(fromId, id);
             moveFromSeatId = null;
             selectedSeatId = null;
@@ -2365,6 +2408,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
           if (act === "delete") {
             if (seat && seat.locked) { toast("고정된 좌석은 삭제할 수 없어요. 먼저 고정을 해제하세요."); }
             else if (seat) {
+              pushUndo("deleteSeat");
               seat.name = null;
               seat.void = true;
               seat.locked = false;
@@ -2386,6 +2430,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
 
           if (act === "restore") {
             if (seat) {
+              pushUndo("restoreSeat");
               seat.void = false;
               seat.name = null;
               seat.locked = false;
@@ -2472,6 +2517,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
         if (act === "delete") {
           if (isTouchLike() && selectedSeatId !== id) { selectedSeatId = id; renderGrid(); return; }
           if (seat.locked) { toast("고정된 좌석은 삭제할 수 없어요. 먼저 고정을 해제하세요."); return; }
+          pushUndo("deleteSeat");
           seat.name = null;
           seat.void = true;
           seat.locked = false;
@@ -2487,6 +2533,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
         }
         if (act === "restore") {
           if (isTouchLike() && selectedSeatId !== id) { selectedSeatId = id; renderGrid(); return; }
+          pushUndo("restoreSeat");
           seat.void = false;
           seat.name = null;
           seat.locked = false;
@@ -3008,14 +3055,16 @@ for (let i = 0; i < orderedIds.length; i += size) {
     });
   });
 
-  if (autoFillBtn) autoFillBtn.addEventListener("click", autoFill);
+  if (autoFillBtn) autoFillBtn.addEventListener("click", () => { pushUndo("autoFill"); autoFill(); });
   if (clearBtn) clearBtn.addEventListener("click", () => {
     const ok = window.confirm("정말 초기화할까요?\n배치도/학생/옵션이 초기화됩니다.");
     if (!ok) return;
+    pushUndo("clearAll");
     clearAll();
     toast("초기화되었습니다.");
   });
-  if (restoreVoidsBtn) restoreVoidsBtn.addEventListener("click", restoreVoids);
+  if (restoreVoidsBtn) restoreVoidsBtn.addEventListener("click", () => { pushUndo("restoreVoids"); restoreVoids(); });
+  if (undoBtn) { undoBtn.disabled = true; undoBtn.addEventListener("click", doUndo); }
 
   if (showSeatNo) showSeatNo.addEventListener("change", renderGrid);
   if (showGroups) showGroups.addEventListener("change", () => { closeGroupMenu(); renderGrid(); });
@@ -3825,7 +3874,7 @@ let _savingStudentsNow = false;
 
   function currentSnapshot() {
     return {
-  version: "0.84",
+  version: "0.89",
       cols, rows,
       seatType: seatTypeSel ? seatTypeSel.value : "single",
       boardAtTop,

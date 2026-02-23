@@ -399,30 +399,17 @@ button.multiline{
   font-size:20px;
   font-weight:1000;
   z-index:20;
-  pointer-events: none;
+  pointer-events:auto;
 
   box-shadow: 0 6px 14px rgba(0,0,0,.35);
 }
 .actionBadge:hover{ background: rgba(239,68,68,.12); }
 
-/* hover 가능한 환경에서는 hover로 노출 */
-@media (hover: hover) and (pointer: fine){
-  .seat:hover .actionBadge{ display:flex; pointer-events:auto; }
-
-/* 모드(성별/고정)에서는 휴지통/복구 아이콘을 숨김 */
-.stage.mode-gender .seat .actionBadge,
-.stage.mode-pin .seat .actionBadge{ display:none !important; }
-}
-
-/* 터치 환경에서는 '선택된 좌석'에만 표시 (JS가 .showActions 부여) */
-.seat.showActions .actionBadge{ display:flex; pointer-events:auto; }
-
-/* ✅ 이동 배지(모바일 이동 모드) */
+/* ✅ 이동 배지(↔) - 모바일에서 선택된 좌석에만 표시 */
 .moveBadge{
   position:absolute;
   top:6px;
-  /* 삭제/복구(🗑/↩) 아이콘의 왼쪽에 오도록 배치 */
-  right:52px;
+  right:50px; /* 삭제/복구 아이콘 왼쪽 */
   width:38px;
   height:38px;
   border-radius:12px;
@@ -430,26 +417,46 @@ button.multiline{
   align-items:center;
   justify-content:center;
 
-  border:2px solid rgba(96,165,250,.95);
+  border:2px solid rgba(59,130,246,.95);
   background: rgba(17,24,39,.92);
   color:#ffffff;
 
   cursor:pointer;
-  font-size:20px;
+  font-size:18px;
   font-weight:1000;
   z-index:20;
-  pointer-events:none;
+  pointer-events:auto;
+
   box-shadow: 0 6px 14px rgba(0,0,0,.35);
 }
+.moveBadge:hover{ background: rgba(59,130,246,.12); }
 
-/* 터치에서 선택된 좌석에만 노출/클릭 가능 */
-.seat.showActions .moveBadge{ display:flex; pointer-events:auto; }
+/* 터치 환경: 선택된 좌석에서 노출 */
+.seat.showActions .moveBadge{ display:flex; }
 
-/* 데스크탑에서는 이동 배지 숨김(드래그로 이동) */
-@media (pointer:fine){
-  .seat:hover .moveBadge{ display:none !important; }
+/* 이동 모드: 이동 아이콘은 유지 + 강조, 삭제/복구는 숨김 */
+.seat.moveArmed .moveBadge{ display:flex; background: rgba(59,130,246,.18); }
+.seat.moveArmed .actionBadge{ display:none !important; }
+
+/* 좌석 교체 효과 */
+.seat.swapFlash{
+  outline: 3px solid rgba(250,204,21,.95);
+  box-shadow: 0 10px 26px rgba(250,204,21,.18);
+  transform: translateY(-1px);
 }
 
+
+/* hover 가능한 환경에서는 hover로 노출 */
+@media (hover: hover) and (pointer: fine){
+  .seat:hover .actionBadge{ display:flex; }
+
+/* 모드(성별/고정)에서는 휴지통/복구 아이콘을 숨김 */
+.stage.mode-gender .seat .actionBadge,
+.stage.mode-pin .seat .actionBadge{ display:none !important; }
+}
+
+/* 터치 환경에서는 '선택된 좌석'에만 표시 (JS가 .showActions 부여) */
+.seat.showActions .actionBadge{ display:flex; }
 
 /* ✅ 고정핀 배지(왼쪽 위) - 삭제와 동일한 크기 */
 .pinBadge{
@@ -1330,9 +1337,4 @@ select{
     color:#111827 !important;
     background: rgba(17,24,39,.06) !important;
   }
-}
-
-/* 모바일 이동 모드: 출발 좌석 강조 */
-.seat.moveFrom{
-  box-shadow: 0 0 0 2px rgba(96,165,250,.55) inset, 0 10px 22px rgba(0,0,0,.25);
 }

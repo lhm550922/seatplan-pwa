@@ -8,16 +8,24 @@
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7080369772039977"
      crossorigin="anonymous"></script>
   <link rel="icon" type="image/png" href="icons/favicon.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=0.89" />
-  <link rel="stylesheet" href="./styles.css?v=0.89" />
+  <link rel="manifest" href="./manifest.webmanifest?v=0.90" />
+  <link rel="stylesheet" href="./styles.css?v=0.90" />
   <title>자리배치 PWA</title>
 </head>
 <body>
   <header class="header">
     <div class="headerTop">
       <div>
-        <h1>자리배치 PWA <span style="opacity:.65;font-weight:900">v0.89</span></h1>
+        <h1>자리배치 PWA <span style="opacity:.65;font-weight:900">v0.90</span></h1>
         <p class="sub">🧑‍🏫 담임교사를 위한 자리배치 도구</p>
+      <nav class="topNav" aria-label="사이트 메뉴">
+        <a href="index.html">앱</a>
+        <a href="guide.html">사용법</a>
+        <a href="faq.html">FAQ</a>
+        <a href="changelog.html">업데이트</a>
+        <a href="about.html">소개</a>
+        <a href="contact.html">문의</a>
+      </nav>
       </div>
       <div class="status" style="display:none" aria-hidden="true">
         <div class="pill">Service Worker: <b id="swStatus">확인 중…</b></div>
@@ -39,7 +47,9 @@
 
       <p style="margin:0 0 12px; line-height:1.65; opacity:.92;">
   <span class="hintIcon" aria-hidden="true">💡</span>
-  <b>실행순서 : </b>책상 배열 → 학생 입력 → (선택사항: 성별/고정좌석/세부 옵션 등) → 자동 배치
+  <b>실행순서</b>
+  <span class="hintIcon" aria-hidden="true">💡</span><br>
+  책상 배열 → 학생 입력 → (선택사항: 성별/고정좌석/세부 옵션 등) → 자동 배치
 </p>
 
       <button id="toggleIntroBtn" class="ghost smallBtn" type="button" style="margin:0;">자세히 보기 ▾</button>
@@ -71,6 +81,7 @@
             <button id="openStudentsBtn" class="required">학생 입력</button>
             <button id="autoFillBtn" class="required">자동 배치★</button>
             <button id="openGuideBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">📘</span><span class="btnLabel">사용법</span></button>
+            <button id="demoBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">🎓</span><span class="btnLabel">샘플</span></button>
           </div>
 
           <div class="menuRow menuRowModes">
@@ -470,7 +481,7 @@
   <!-- ✅ 모둠 드롭다운(잘림 방지용) : 화면 위 레이어 -->
   <div id="groupMenu" class="groupMenu hidden" role="listbox" aria-label="모둠 번호 선택"></div>
 
-  <script src="./app.js?v=0.89"></script>
+  <script src="./app.js?v=0.90"></script>
 
 <footer style="text-align:center; margin:20px 0; font-size:0.9em; color:rgba(255,255,255,0.85);">
   <a href="guide.html" style="color:rgba(255,255,255,0.85);">사용법</a> |

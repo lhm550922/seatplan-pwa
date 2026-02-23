@@ -1,4 +1,4 @@
-/* SeatPlan App (v0.89) */
+/* SeatPlan App (v0.90) */
 /* SeatPlan PWA - app.js v0.83
    변경(요청 반영):
    1) 고정 좌석(📌): '고정 좌석' 버튼 클릭 시 각 좌석 좌상단에 작은 핀 아이콘 표시(삭제 아이콘과 동일 크기).
@@ -35,6 +35,7 @@
   const openOptionsBtn = $("openOptionsBtn");
   const openSaveBtn = $("openSaveBtn");
   const openGuideBtn = $("openGuideBtn");
+  const demoBtn = $("demoBtn");
 
   const layoutModal = $("layoutModal");
   const studentsModal = $("studentsModal");
@@ -3256,6 +3257,30 @@ let _savingStudentsNow = false;
   if (openSaveBtn) openSaveBtn.addEventListener("click", () => { if (shareBox) shareBox.classList.add("hidden"); openModal(saveModal); });
 
   if (openGuideBtn) openGuideBtn.addEventListener("click", () => { window.location.href = "./guide.html"; });
+
+  if (demoBtn) demoBtn.addEventListener("click", () => {
+    try {
+      pushUndo("demo");
+    } catch {}
+    // 1) 기본 레이아웃(예: 6x5=30자리) 생성
+    applyLayout("single", { singleCols: 6, singleRows: 5 });
+
+    // 2) 샘플 학생(24명) 입력 + 자동 배치
+    const demoNames = [
+      "김하늘","이준","박서연","최민준","정지우","한예린",
+      "윤서준","강민서","오지훈","임수아","신도윤","조은우",
+      "장하린","송지안","배현우","문서윤","권도하","백지민",
+      "서지후","홍예나","유하준","나은서","전민호","고서아"
+    ];
+    if (studentsInput) {
+      studentsInput.value = demoNames.join("\n");
+      try { normalizeStudentsInput(); } catch {}
+      try { studentsTextToTable(); } catch {}
+    }
+    // 바로 자동 배치
+    autoFill();
+    log("샘플 학급 불러오기");
+  });
 
   // ===== Share UI (inside 저장/불러오기) =====
   let lastShareSnap = null;

@@ -1347,3 +1347,32 @@ select{
 @media (pointer: coarse) {
   .moveBadge{ border-color: rgba(34,197,94,.95); }
 }
+
+
+/* ===== v0.90: Top navigation (policy-friendly, crawlable links) ===== */
+.topNav{
+  margin-top:8px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.topNav a{
+  color:rgba(255,255,255,.9);
+  text-decoration:none;
+  font-size:.92rem;
+  padding:6px 10px;
+  border:1px solid rgba(255,255,255,.16);
+  border-radius:999px;
+  background:rgba(255,255,255,.04);
+}
+.topNav a:hover{ background:rgba(255,255,255,.08); }
+
+.codeBox{
+  border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.04);
+  border-radius:12px;
+  padding:12px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+  font-size:.92rem;
+  color:rgba(255,255,255,.92);
+}

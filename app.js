@@ -1663,7 +1663,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
       const move = document.createElement("div");
       move.className = "moveBadge";
       move.dataset.action = "moveStart";
-      move.textContent = "↔";
+      move.textContent = "↔️";
       move.title = "자리 이동(교체)";
       if (seat.void) move.classList.add("hidden");
       div.appendChild(move);

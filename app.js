@@ -1653,6 +1653,11 @@ for (let i = 0; i < orderedIds.length; i += size) {
     div.className = "seat";
     div.dataset.seatId = String(seat.id);
 
+    // 모바일: 선택된 좌석은 렌더링 단계에서 바로 액션 아이콘이 보이도록 클래스 부여
+    if (isMobileUI() && uiMode === "none" && selectedSeatId === seat.id && _mobileMoveFromId == null) {
+      div.classList.add("showActions");
+    }
+
     if (seat.locked) div.classList.add("locked");
     if (seat.void) div.classList.add("void");
     if (vioSet.has(seat.id)) div.classList.add("violation");

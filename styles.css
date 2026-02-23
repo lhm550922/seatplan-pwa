@@ -444,7 +444,8 @@ button.multiline{
 
 /* 모바일 이동 모드(A안): 아이콘 모두 숨김 */
 .stage.moveMode .seat .actionBadge,
-.stage.moveMode 
+.stage.moveMode .seat .moveBadge{ display:none !important; }
+
 /* 이동 준비 자리 강조 */
 .seat.moveArmed{ outline: 3px solid rgba(59,130,246,.95); outline-offset: 2px; }
 

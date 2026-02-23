@@ -431,7 +431,8 @@ button.multiline{
 
 /* hover 가능한 환경에서는 hover로 노출 */
 @media (hover: hover) and (pointer: fine){
-  .seat:hover .actionBadge{ display:flex; }
+  /* 데스크탑: hover로 노출 + 클릭 가능 */
+  .seat:hover .actionBadge{ display:flex; pointer-events:auto; }
 .seat:hover .moveBadge{ display:none; }
 
 /* 모드(성별/고정)에서는 휴지통/복구 아이콘을 숨김 */

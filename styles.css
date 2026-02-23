@@ -1342,3 +1342,8 @@ select{
   animation: swapFlashAnim .42s ease-out;
 }
 
+
+
+@media (pointer: coarse) {
+  .moveBadge{ border-color: rgba(34,197,94,.95); }
+}

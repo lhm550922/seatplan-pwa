@@ -2164,8 +2164,9 @@ for (let i = 0; i < orderedIds.length; i += size) {
       const seatDiv = e.target.closest(".seat");
       if (!seatDiv) return;
 
-      // 아이콘(삭제/핀/모둠/성별)은 클릭 우선
-      if (e.target.closest("[data-action]")) return;
+      // ✅ 모바일에서 아이콘 탭도 pointerup에서 처리해야 함.
+      // (터치는 click을 무시하므로, 여기서 return하면 아이콘이 절대 실행되지 않음)
+      const actionHit = e.target.closest("[data-action]");
 
       const id = Number(seatDiv.dataset.seatId);
       if (Number.isNaN(id)) return;
@@ -2173,18 +2174,38 @@ for (let i = 0; i < orderedIds.length; i += size) {
       // 통로(삭제) 좌석도 탭으로 선택해서 복구 아이콘을 띄울 수 있도록 허용
       const isVoidSeat = !!(seat && seat.void);
 
-      // ✅ 드래그 후보만 설정(스크롤 가능) + 롱프레스(약 180ms) 시 드래그 허용
-      touchDrag = { id, seatDiv, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, moved: false, dx: 0, dy: 0, overId: null, armed: false, _armT: null, noSwap: isVoidSeat };
+      // ✅ 드래그 후보만 설정(스크롤 가능) + 롱프레스 후에만 자유 드래그
+      // 아이콘 탭(actionHit)인 경우: 드래그/스와프는 하지 않고 pointerup에서 액션만 처리
+      touchDrag = {
+        id,
+        seatDiv,
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        moved: false,
+        dx: 0,
+        dy: 0,
+        overId: null,
+        armed: false,
+        _armT: null,
+        noSwap: isVoidSeat || !!actionHit,
+        noDrag: !!actionHit,
+      };
 
       // 손가락이 살짝 움직이며 스크롤하려는 경우를 우선: 롱프레스 후에만 자유 드래그
-      touchDrag._armT = setTimeout(() => {
-        if (touchDrag && touchDrag.pointerId === e.pointerId) touchDrag.armed = true;
-      }, 180);
+      if (!touchDrag.noDrag) {
+        touchDrag._armT = setTimeout(() => {
+          if (touchDrag && touchDrag.pointerId === e.pointerId) touchDrag.armed = true;
+        }, 220);
+      }
     });
 
     gridEl.addEventListener("pointermove", (e) => {
       if (!isTouchLike()) return;
       if (!touchDrag) return;
+
+      // ✅ 아이콘 탭은 드래그 로직을 타지 않음
+      if (touchDrag.noDrag) return;
 
       const el = touchDrag.seatDiv;
       const dx = e.clientX - touchDrag.startX;

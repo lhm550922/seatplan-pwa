@@ -3532,7 +3532,7 @@ let _savingStudentsNow = false;
           ctx.font = "800 16px system-ui";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText("통로", x + seatW / 2, y + seatH / 2);
+          // export/print: hide aisle label text
           continue;
         }
 
@@ -3573,14 +3573,15 @@ let _savingStudentsNow = false;
           ctx.fillText("📌", x + 22, y + 18);
         }
 
-        const nm = seat.name ? seat.name : "빈자리";
-        ctx.fillStyle = seat.name ? "#e5e7eb" : "rgba(156,163,175,0.85)";
-        ctx.font = seat.name ? "900 18px system-ui" : "800 16px system-ui";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(nm, x + seatW / 2, y + seatH / 2);
-
-        // 모둠 표시(텍스트만)
+        const nm = seat.name ? seat.name : "";
+if (nm) {
+  ctx.fillStyle = "#000000";
+  ctx.font = "900 18px system-ui";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(nm, x + seatW / 2, y + seatH / 2);
+}
+// 모둠 표시(텍스트만)
         if (showGroups && showGroups.checked) {
           const gid = clamp(Number(seat.groupId ?? 1), 1, 8);
           ctx.fillStyle = "rgba(0,0,0,0.25)";

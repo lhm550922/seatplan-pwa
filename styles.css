@@ -47,7 +47,7 @@ body{
 }
 
 .header{padding:24px 16px 8px;max-width:1200px;margin:0 auto;}
-.headerTop{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+.headerTop{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;}
 .header h1{margin:0 0 6px;font-size:24px}
 .sub{margin:0;color:var(--muted);max-width:920px;line-height:1.35}
 
@@ -82,6 +82,36 @@ button{
 button:hover{background:var(--btnHover)}
 button.ghost{ background:transparent; }
 button.ghost:hover{ background:rgba(255,255,255,.06); }
+
+/* Link-like mini action (e.g., 샘플) */
+button.linkLike{
+  background: transparent;
+  border: none;
+  padding: 6px 4px;
+  font-size: 13px;
+  color: rgba(255,255,255,.92);
+  cursor: pointer;
+}
+button.linkLike:hover{ text-decoration: underline; background: transparent; }
+button.linkLike .btnEmoji{ margin-right: 4px; }
+
+/* Icon-only buttons (Undo/Reset) */
+button.iconOnly{
+  /* Pure icon look (no border / no button chrome) */
+  border: none;
+  background: transparent;
+  padding: 6px 8px;
+  border-radius: 12px;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+button.iconOnly:hover{ background: rgba(255,255,255,.06); }
+button.iconOnly:active{ transform: translateY(1px); }
+button.iconOnly .btnEmoji{ font-size: 28px; line-height: 1; }
+button.iconOnly .btnLabel{ display:none; }
 button.smallBtn{padding:8px 10px;font-weight:900;border-radius:10px;}
 
 /* Flash success feedback for buttons (does not block clicks elsewhere) */
@@ -187,6 +217,10 @@ button.multiline{
     font-size:14px;
   }
   .btnEmoji{ display:none; }
+  /* Keep icons visible for icon-only buttons and link-like actions */
+  button.iconOnly .btnEmoji{ display:inline-flex !important; }
+  button.linkLike .btnEmoji{ display:inline-flex !important; }
+  button.linkLike{ font-size:12px; padding:6px 2px; }
 
   /* Avoid left-cutoff: start grid at left, allow horizontal scroll */
   .grid{ justify-content:flex-start; }
@@ -1349,13 +1383,22 @@ select{
 }
 
 
+
+.brandBlock{
+  flex:1 1 auto;
+  min-width: 240px;
+}
+
 /* ===== v0.90: Top navigation (policy-friendly, crawlable links) ===== */
 .topNav{
-  margin-top:8px;
+  margin-top:0;
   display:flex;
   flex-wrap:wrap;
   gap:8px;
+  justify-content:flex-end;
+  align-items:center;
 }
+
 .topNav a{
   color:rgba(255,255,255,.9);
   text-decoration:none;
@@ -1375,4 +1418,11 @@ select{
   font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
   font-size:.92rem;
   color:rgba(255,255,255,.92);
+}
+
+
+/* responsive: header nav */
+@media (max-width: 720px){
+  .headerTop{ align-items:flex-start; }
+  .topNav{ margin-top:8px; justify-content:flex-start; }
 }

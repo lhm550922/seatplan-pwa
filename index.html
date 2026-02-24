@@ -15,9 +15,10 @@
 <body>
   <header class="header">
     <div class="headerTop">
-      <div>
+      <div class="brandBlock">
         <h1>자리배치 PWA <span style="opacity:.65;font-weight:900">v0.90</span></h1>
         <p class="sub">🧑‍🏫 담임교사를 위한 자리배치 도구</p>
+      </div>
       <nav class="topNav" aria-label="사이트 메뉴">
         <a href="index.html">앱</a>
         <a href="guide.html">사용법</a>
@@ -26,10 +27,9 @@
         <a href="about.html">소개</a>
         <a href="contact.html">문의</a>
       </nav>
-      </div>
-      <div class="status" style="display:none" aria-hidden="true">
+    </div>
+    <div class="status" style="display:none" aria-hidden="true">
         <div class="pill">Service Worker: <b id="swStatus">확인 중…</b></div>
-      </div>
 </div>
   </header>
 
@@ -46,10 +46,10 @@
       </p>
 
       <p style="margin:0 0 12px; line-height:1.65; opacity:.92;">
-  <span class="hintIcon" aria-hidden="true">💡</span>
-  <b>실행순서</b>
-  <span class="hintIcon" aria-hidden="true">💡</span><br>
-  책상 배열 → 학생 입력 → (선택사항: 성별/고정좌석/세부 옵션 등) → 자동 배치
+  <span class="hintIcon" aria-hidden="true">⭐️</span>
+  <b>실행순서 : </b> 책상 배열 → 학생 입력 → (선택사항: 성별/고정좌석/세부 옵션 등) → 자동 배치
+  <span class="hintIcon" aria-hidden="true">⭐️</span><br>
+  
 </p>
 
       <button id="toggleIntroBtn" class="ghost smallBtn" type="button" style="margin:0;">자세히 보기 ▾</button>
@@ -80,16 +80,15 @@
             <button id="openLayoutBtn" class="required">책상 배열</button>
             <button id="openStudentsBtn" class="required">학생 입력</button>
             <button id="autoFillBtn" class="required">자동 배치★</button>
-            <button id="openGuideBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">📘</span><span class="btnLabel">사용법</span></button>
-            <button id="demoBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">🎓</span><span class="btnLabel">샘플</span></button>
+            <button id="demoBtn" class="linkLike" type="button"><span class="btnEmoji" aria-hidden="true">📋</span><span class="btnLabel">샘플</span></button>
           </div>
 
           <div class="menuRow menuRowModes">
             <button id="modeGenderBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">👦👧</span><span class="btnLabel">성별 지정</span></button>
             <button id="modePinBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">📌</span><span class="btnLabel">고정 좌석</span></button>
             <button id="openOptionsBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">⚙️</span><span class="btnLabel">세부 옵션</span></button>
-            <button id="undoBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">⬅️</span><span class="btnLabel">이전</span></button>
-            <button id="clearBtn" class="ghost"><span class="btnLabel">초기화</span></button>
+            <button id="undoBtn" class="ghost" title="이전">⬅️ 이전</button>
+            <button id="clearBtn" class="ghost" title="초기화">🔄 초기화</button>
           </div>
         </div>
 

@@ -1,11 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>index.html</loc><lastmod>2026-02-23</lastmod></url>
-  <url><loc>guide.html</loc><lastmod>2026-02-23</lastmod></url>
-  <url><loc>faq.html</loc><lastmod>2026-02-23</lastmod></url>
-  <url><loc>changelog.html</loc><lastmod>2026-02-23</lastmod></url>
-  <url><loc>about.html</loc><lastmod>2026-02-23</lastmod></url>
-  <url><loc>contact.html</loc><lastmod>2026-02-23</lastmod></url>
-  <url><loc>privacy.html</loc><lastmod>2026-02-23</lastmod></url>
-  <url><loc>terms.html</loc><lastmod>2026-02-23</lastmod></url>
+  <url><loc>index.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>guide.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>faq.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>changelog.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>about.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>contact.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>privacy.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>terms.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>tips.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>tip-01.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>tip-02.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>tip-03.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>tip-04.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>tip-05.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>tip-06.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>tip-07.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>tip-08.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>tip-09.html</loc><lastmod>2026-02-25</lastmod></url>
+  <url><loc>tip-10.html</loc><lastmod>2026-02-25</lastmod></url>
 </urlset>

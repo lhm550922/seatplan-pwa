@@ -8,28 +8,29 @@
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7080369772039977"
      crossorigin="anonymous"></script>
   <link rel="icon" type="image/png" href="icons/favicon.png">
-  <link rel="manifest" href="./manifest.webmanifest?v=0.90" />
-  <link rel="stylesheet" href="./styles.css?v=0.90" />
+  <link rel="manifest" href="./manifest.webmanifest?v=0.91" />
+  <link rel="stylesheet" href="./styles.css?v=0.91" />
   <title>자리배치 PWA</title>
 </head>
 <body>
   <header class="header">
     <div class="headerTop">
-      <div class="brandBlock">
-        <h1>자리배치 PWA <span style="opacity:.65;font-weight:900">v0.90</span></h1>
+      <div class="headerBrand">
+        <h1>자리배치 PWA <span style="opacity:.65;font-weight:900">v0.91</span></h1>
         <p class="sub">🧑‍🏫 담임교사를 위한 자리배치 도구</p>
       </div>
       <nav class="topNav" aria-label="사이트 메뉴">
-        <a href="index.html">앱</a>
+        <a href="index.html">홈</a>
         <a href="guide.html">사용법</a>
         <a href="faq.html">FAQ</a>
         <a href="changelog.html">업데이트</a>
         <a href="about.html">소개</a>
         <a href="contact.html">문의</a>
+        <a href="tips.html">팁</a>
       </nav>
-    </div>
-    <div class="status" style="display:none" aria-hidden="true">
+<div class="status" style="display:none" aria-hidden="true">
         <div class="pill">Service Worker: <b id="swStatus">확인 중…</b></div>
+      </div>
 </div>
   </header>
 
@@ -46,10 +47,10 @@
       </p>
 
       <p style="margin:0 0 12px; line-height:1.65; opacity:.92;">
-  <span class="hintIcon" aria-hidden="true">⭐️</span>
-  <b>실행순서 : </b> 책상 배열 → 학생 입력 → (선택사항: 성별/고정좌석/세부 옵션 등) → 자동 배치
-  <span class="hintIcon" aria-hidden="true">⭐️</span><br>
-  
+  <span class="hintIcon" aria-hidden="true">💡</span>
+  <b>실행순서</b>
+  <span class="hintIcon" aria-hidden="true">💡</span><br>
+  책상 배열 → 학생 입력 → (선택사항: 성별/고정좌석/세부 옵션 등) → 자동 배치
 </p>
 
       <button id="toggleIntroBtn" class="ghost smallBtn" type="button" style="margin:0;">자세히 보기 ▾</button>
@@ -80,15 +81,15 @@
             <button id="openLayoutBtn" class="required">책상 배열</button>
             <button id="openStudentsBtn" class="required">학생 입력</button>
             <button id="autoFillBtn" class="required">자동 배치★</button>
-            <button id="demoBtn" class="linkLike" type="button"><span class="btnEmoji" aria-hidden="true">📋</span><span class="btnLabel">샘플</span></button>
+            <a id="demoBtn" class="demoLink" href="#"><span class="btnEmoji" aria-hidden="true">📝</span><span class="btnLabel">샘플</span></a>
           </div>
 
           <div class="menuRow menuRowModes">
             <button id="modeGenderBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">👦👧</span><span class="btnLabel">성별 지정</span></button>
             <button id="modePinBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">📌</span><span class="btnLabel">고정 좌석</span></button>
             <button id="openOptionsBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">⚙️</span><span class="btnLabel">세부 옵션</span></button>
-            <button id="undoBtn" class="ghost" title="이전">⬅️ 이전</button>
-            <button id="clearBtn" class="ghost" title="초기화">🔄 초기화</button>
+            <button id="undoBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">⬅️</span><span class="btnLabel">이전</span></button>
+            <button id="clearBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">🧹</span><span class="btnLabel">초기화</span></button>
           </div>
         </div>
 
@@ -102,9 +103,9 @@
           <div class="menuRow menuRowRight menuRowToggles">
             <div id="displayPanelHost" class="displayHost">
               <div class="displayPanel">
-                <label class="toggle"><input id="showSeatNo" type="checkbox" checked> 좌석 번호 표시</label>
                 <label class="toggle"><input id="showGroups" type="checkbox"> 모둠 번호 표시</label>
-                <label class="toggle"><input id="showGender" type="checkbox"> 성별 표시</label>
+                <label class="toggle"><input id="showSeatNo" type="checkbox" checked> 좌석 번호 표시</label>
+                <label class="toggle"><input id="showGender" type="checkbox"> 좌석 성별 표시</label>
               </div>
             </div>
           </div>
@@ -344,7 +345,8 @@
             <div id="forbiddenGroupsContainer" class="forbiddenGroupsContainer"></div>
             <div class="row forbiddenGroupRow" style="margin-top:8px; display:flex; align-items:center; justify-content:flex-start; gap:10px;">
               <button id="addForbiddenGroupBtn" class="ghost smallBtn" type="button">그룹 추가</button>
-              <label class="toggle" style="margin:0; white-space:nowrap;"><input id="includeDiagonal" type="checkbox" /> 대각선도 인접으로 판단</label>
+              <label class="toggle" style="margin:0; white-space:nowrap;"><input id="includeDiagonal" type="checkbox" /> 대각선도 금지</label>
+              <label class="toggle" style="margin:0; white-space:nowrap;"><input id="includeSameGroup" type="checkbox" /> 같은 모둠도 금지</label>
             </div>
           </div>
 
@@ -361,21 +363,11 @@
             <label class="sectionHeadToggle">
               <input id="balanceLevels" type="checkbox" />
               <span class="sectionTitle">모둠별 수준 분산</span>
-              <span class="sectionHeadDescInline">- 모둠별 학습수준(상/중/하)이 고르게 섞이도록 배치해요</span>
+              <div class="sectionHeadDescInline descBlock">- 모둠별 학습수준(상/중/하)이 고르게 섞이도록 배치해요</div>
+              <div class="sectionHeadDescInline descBlock">- 모둠 확인 및 변경은 홈 화면의 '모둠 번호 표시' 체크 후 가능해요</div>
             </label>
           </div>
-          <div class="row">
-            <div class="field">
-              <label>모둠 인원</label>
-              <select id="groupMode">
-                <option value="none" selected>사용 안 함</option>
-                <option value="4">4명씩</option>
-                <option value="5">5명씩</option>
-                <option value="6">6명씩</option>
-              </select>
-            </div>
-          </div>
-        </div>
+</div>
 
         <hr class="sep" />
 
@@ -390,7 +382,8 @@
           <div class="row">
             <label class="toggle"><input id="rotateFront" type="checkbox" checked /> 맨 앞줄 로테이션 기록</label>
             <label class="toggle"><input id="rotateBack" type="checkbox" checked /> 맨 뒷줄 로테이션 기록</label>
-            <button id="resetHistoryBtn" class="ghost smallBtn">기록 초기화</button>
+            <button id="viewHistoryBtn" class="ghost smallBtn" type="button">기록 보기</button>
+            <button id="resetHistoryBtn" class="ghost smallBtn" type="button">기록 초기화</button>
           </div>
         </div>
       </div>
@@ -480,7 +473,7 @@
   <!-- ✅ 모둠 드롭다운(잘림 방지용) : 화면 위 레이어 -->
   <div id="groupMenu" class="groupMenu hidden" role="listbox" aria-label="모둠 번호 선택"></div>
 
-  <script src="./app.js?v=0.90"></script>
+  <script src="./app.js?v=0.91"></script>
 
 <footer style="text-align:center; margin:20px 0; font-size:0.9em; color:rgba(255,255,255,0.85);">
   <a href="guide.html" style="color:rgba(255,255,255,0.85);">사용법</a> |

@@ -1,4 +1,4 @@
-/* SeatPlan App (v0.90) */
+/* SeatPlan App (v0.91) */
 /* SeatPlan PWA - app.js v0.83
    변경(요청 반영):
    1) 고정 좌석(📌): '고정 좌석' 버튼 클릭 시 각 좌석 좌상단에 작은 핀 아이콘 표시(삭제 아이콘과 동일 크기).
@@ -74,6 +74,18 @@
   const forbiddenInput = $("forbiddenInput");
   const useForbidden = $("useForbidden");
   const includeDiagonal = $("includeDiagonal");
+  const includeSameGroup = $("includeSameGroup");
+
+  // ✅ "같은 모둠도 금지"를 켜면 홈 화면에서 모둠 번호 표시도 자동 ON
+  if (includeSameGroup) {
+    includeSameGroup.addEventListener("change", () => {
+      if (includeSameGroup.checked && showGroups) {
+        showGroups.checked = true;
+        saveBool("showGroups", true);
+        try { renderStage(); } catch {}
+      }
+    });
+  }
   // 세부 옵션: 금지쌍(그룹 UI)
   const forbiddenGroupsContainer = $("forbiddenGroupsContainer");
   const addForbiddenGroupBtn = $("addForbiddenGroupBtn");
@@ -87,8 +99,10 @@
 
   const useRotation = $("useRotation");
   const resetHistoryBtn = $("resetHistoryBtn");
+  const viewHistoryBtn = $("viewHistoryBtn");
 
   const groupMode = $("groupMode");
+  const groupModeManual = $("groupModeManual");
   const balanceLevels = $("balanceLevels");
 
   const toggleOrientationBtn = $("toggleOrientationBtn");
@@ -718,6 +732,8 @@ function centerToast(msg) {
   let seats = [];
   let history = {};
   let violations = [];
+  let forbidColorMap = new Map();
+
 
   let boardAtTop = true;
   let uiMode = "none";       // none | gender | pin
@@ -1142,46 +1158,70 @@ function studentsSetVisibility(){
   }
 
   function applyAutoGroups() {
-    // layoutKind === group인 경우 이미 배치에서 groupId가 지정됨
-    // 여기서는 자동 그룹핑 옵션이 있으면 groupId를 채움.
-    if (!groupMode) return;
-    const mode = groupMode.value;
-    if (mode === "none") return;
+  // ✅ 자동 모둠 기본 세팅(모둠 번호 표시 기준)
+  // - 1인(단독) 배열: "열" 단위로 같은 모둠
+  // - 2인(짝) 배열: 같은 줄의 짝꿍 + 앞/뒤 짝꿍까지 4명씩 같은 모둠
+  // - 모둠 배열: 레이아웃 자체 groupId 유지
+  //
+  // 수동 모둠 변경 이후에는 자동 재계산으로 다른 좌석이 변하지 않도록 동결
+  if (autoGroupFrozen) return;
 
-    // 수동 모둠 변경 이후에는 자동 그룹핑으로 다른 좌석이 움직이지 않도록 함
-    if (autoGroupFrozen) return;
+  if (layoutKind === "group") return;
 
-    const size = Number(mode);
-    if (!size) return;
-
-    // ✅ void 제외 + 수동 지정된 좌석은 자동 그룹핑으로 덮어쓰지 않음
-// v0.82: 세로줄(열 우선) 기준으로 모둠 자동 지정
-// - 좌석을 (열 -> 행) 순서로 훑어서, 같은 열의 위/아래가 먼저 같은 모둠이 되도록 한다.
-const activeSet = new Set(
-  seats
-    .filter((s) => !s.void && !s.groupManual)
-    .map((s) => s.id)
-);
-
-const orderedIds = [];
-for (let c = 0; c < cols; c++) {
-  for (let r = 0; r < rows; r++) {
-    const id = r * cols + c;
-    if (activeSet.has(id)) orderedIds.push(id);
-  }
-}
-
-let gidCounter = 1;
-for (let i = 0; i < orderedIds.length; i += size) {
-  const gid = clamp(gidCounter, 1, 8);
-  const chunk = orderedIds.slice(i, i + size);
-  for (const id of chunk) {
+  // showGroups가 꺼져 있어도(또는 옵션 때문에) groupId가 필요할 수 있어 자동으로 채움
+  // ✅ void 제외 + 수동 지정된 좌석은 자동 그룹핑으로 덮어쓰지 않음
+  const isActive = (id) => {
     const s = getSeat(id);
-    if (s) s.groupId = gid;
+    return !!(s && !s.void && !s.groupManual);
+  };
+
+  // 1) 단독: 열 단위(컬럼별) 같은 모둠
+  if (layoutKind === "single") {
+    let gidCounter = 1;
+    for (let c = 0; c < cols; c++) {
+      const gid = clamp(gidCounter, 1, 8);
+      for (let r = 0; r < rows; r++) {
+        const id = r * cols + c;
+        if (!isActive(id)) continue;
+        const s = getSeat(id);
+        if (s) s.groupId = gid;
+      }
+      gidCounter = gidCounter % 8 + 1;
+    }
+    return;
   }
-  gidCounter = gidCounter % 8 + 1;
+
+  // 2) 짝: (같은 줄의 2명) + (앞/뒤 줄의 2명) => 4명씩 같은 모둠
+  if (layoutKind === "pair") {
+    const pc = Math.max(1, Math.floor(cols / 2)); // desk-pairs across the row
+    let gidCounter = 1;
+
+    for (let g = 0; g < pc; g++) {
+      for (let r = 0; r < rows; r += 2) {
+        const gid = clamp(gidCounter, 1, 8);
+
+        const ids = [];
+        // row r
+        ids.push(r * cols + (g * 2));
+        ids.push(r * cols + (g * 2 + 1));
+        // row r+1 (if exists)
+        if (r + 1 < rows) {
+          ids.push((r + 1) * cols + (g * 2));
+          ids.push((r + 1) * cols + (g * 2 + 1));
+        }
+
+        for (const id of ids) {
+          if (!isActive(id)) continue;
+          const s = getSeat(id);
+          if (s) s.groupId = gid;
+        }
+
+        gidCounter = gidCounter % 8 + 1;
+      }
+    }
+    return;
+  }
 }
-  }
 
   function setAccordionVisibility(kind) {
     if (accSingle) accSingle.classList.toggle("hidden", kind !== "single");
@@ -1588,6 +1628,8 @@ for (let i = 0; i < orderedIds.length; i += size) {
     const vioSet = new Set();
     for (const v of violations) { vioSet.add(v.aId); vioSet.add(v.bId); }
 
+    forbidColorMap = buildForbiddenGroupColorMap();
+
     gridEl.innerHTML = "";
 
     for (let displayR = 0; displayR < rows; displayR++) {
@@ -1670,6 +1712,12 @@ for (let i = 0; i < orderedIds.length; i += size) {
     if (seat.locked) div.classList.add("locked");
     if (seat.void) div.classList.add("void");
     if (vioSet.has(seat.id)) div.classList.add("violation");
+    // 금지쌍 그룹 테두리(같은 그룹은 같은 색)
+    if (seat.name && forbidColorMap && forbidColorMap.has(seat.name)) {
+      const info = forbidColorMap.get(seat.name);
+      div.classList.add("forbidMark");
+      div.style.setProperty("--forbidColor", info.color);
+    }
     div.classList.add(...genderClass(seat).split(" ").filter(Boolean));
 
       // 모바일(터치)에서는 드래그가 스크롤과 충돌하기 쉬워서 최소지원: 드래그 비활성화
@@ -1804,8 +1852,12 @@ for (let i = 0; i < orderedIds.length; i += size) {
       if (aId == null || bId == null) continue;
 
       const neigh = new Set(neighborIds(aId));
-      if (neigh.has(bId)) {
-        violations.push({ aName, bName, aId, bId });
+      const sameGroupOn = !!(includeSameGroup && includeSameGroup.checked && showGroups && showGroups.checked);
+      const aSeat = getSeat(aId);
+      const bSeat = getSeat(bId);
+      const sameGroup = sameGroupOn && aSeat && bSeat && !aSeat.void && !bSeat.void && (aSeat.groupId != null) && (bSeat.groupId != null) && (aSeat.groupId === bSeat.groupId);
+      if (neigh.has(bId) || sameGroup) {
+        violations.push({ aName, bName, aId, bId, sameGroup });
       }
     }
 
@@ -1815,7 +1867,10 @@ for (let i = 0; i < orderedIds.length; i += size) {
       violationsBar.textContent = "";
     } else {
       const lines = violations.map(
-        (v) => `- ${v.aName}(좌석 ${v.aId + 1}) ↔ ${v.bName}(좌석 ${v.bId + 1})`
+        (v) => {
+          const tag = v.sameGroup ? " (같은 모둠)" : "";
+          return `- ${v.aName}(좌석 ${v.aId + 1}) ↔ ${v.bName}(좌석 ${v.bId + 1})${tag}`;
+        }
       );
       violationsBar.textContent = `금지쌍 위반 ${violations.length}건:\n` + lines.join("\n");
       violationsBar.style.display = "block";
@@ -1853,6 +1908,10 @@ for (let i = 0; i < orderedIds.length; i += size) {
     const forbidOn = (!useForbidden) || useForbidden.checked;
     if (forbiddenInput) forbiddenInput.disabled = !forbidOn;
     if (includeDiagonal) includeDiagonal.disabled = !forbidOn;
+    // 같은 모둠도 인접으로 판단(모둠 설정 시)
+    if (includeSameGroup) {
+includeSameGroup.disabled = !forbidOn;
+    }
 
     // 금지쌍 그룹 UI 비활성 처리
     if (optionsModal) {
@@ -1864,9 +1923,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
     if (rotateBack) rotateBack.disabled = !rotOn;
 
     const balanceEl = document.getElementById("balanceLevels");
-    const groupModeEl = document.getElementById("groupMode");
     const balanceOn = !!(balanceEl && balanceEl.checked);
-    if (groupModeEl) groupModeEl.disabled = !balanceOn;
     if (optionsModal) {
       optionsModal.classList.toggle("balanceDisabled", !balanceOn);
     }
@@ -1945,7 +2002,33 @@ for (let i = 0; i < orderedIds.length; i += size) {
     return lines.map(parseForbiddenLine).filter((arr) => arr.length > 0);
   }
 
-  function renderForbiddenGroupsFromTextarea() {
+  
+function readForbiddenLineGroups(text){
+  const lines = (text || "").replace(/\r/g, "\n").split("\n").map(x=>x.trim()).filter(Boolean);
+  const groups = [];
+  for (const line of lines) {
+    const parts = line.split(/[,-]/).map(x=>x.trim()).filter(Boolean);
+    if (parts.length >= 2) groups.push(parts);
+  }
+  return groups;
+}
+
+const FORBID_COLORS = ["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#3b82f6","#a855f7","#ec4899","#0ea5e9","#84cc16"];
+function buildForbiddenGroupColorMap(){
+  const map = new Map();
+  const text = forbiddenInput ? forbiddenInput.value : "";
+  const groups = readForbiddenLineGroups(text);
+  groups.forEach((names, idx) => {
+    const color = FORBID_COLORS[idx % FORBID_COLORS.length];
+    for (const n of names) {
+      if (!n) continue;
+      map.set(n, { idx, color });
+    }
+  });
+  return map;
+}
+
+function renderForbiddenGroupsFromTextarea() {
     if (!forbiddenGroupsContainer) return;
     forbiddenGroupsContainer.innerHTML = "";
     forbidGroupCount = 0;
@@ -2818,6 +2901,13 @@ for (let i = 0; i < orderedIds.length; i += size) {
         if (aId == null || bId == null) continue;
         const ns = neighborSet.get(aId);
         if (ns && ns.has(bId)) cost += 1;
+        // 같은 모둠도 인접으로 판단(모둠 설정 시)
+        const sameGroupOn = !!(includeSameGroup && includeSameGroup.checked && showGroups && showGroups.checked);
+        if (sameGroupOn) {
+          const aSeat = getSeat(aId);
+          const bSeat = getSeat(bId);
+          if (aSeat && bSeat && !aSeat.void && !bSeat.void && (aSeat.groupId != null) && (bSeat.groupId != null) && (aSeat.groupId === bSeat.groupId)) cost += 3;
+        }
       }
       return cost;
     };
@@ -3070,23 +3160,21 @@ for (let i = 0; i < orderedIds.length; i += size) {
   if (showSeatNo) showSeatNo.addEventListener("change", renderGrid);
   if (showGroups) showGroups.addEventListener("change", () => { closeGroupMenu(); renderGrid(); });
   if (showGender) showGender.addEventListener("change", renderGrid);
-
-  if (groupMode) groupMode.addEventListener("change", () => {
-    // 사용자가 드롭다운으로 모둠 크기를 다시 선택하면 자동 그룹핑을 다시 허용
-    autoGroupFrozen = false;
-    // ✅ 자동 모둠표기 모드를 바꾸면(=재계산 의도) 기존 수동 지정은 초기화
-    if (groupMode.value !== "none") {
-      seats.forEach((s) => { if (s && !s.void) s.groupManual = false; });
-    }
-    renderGrid();
-    log("모둠 크기 변경");
-  });
   if (balanceLevels) balanceLevels.addEventListener("change", () => {
     // 모둠 인원(select) 활성/비활성 상태를 체크박스와 항상 동기화
     syncOptionEnables();
     ensureShowGroupsForBalance();
     renderGrid();
     log("모둠별 수준 분산 옵션 변경");
+  });
+
+  if (viewHistoryBtn) viewHistoryBtn.addEventListener("click", () => {
+    try {
+      const txt = buildRotationHistoryText();
+      window.alert(txt);
+    } catch {
+      toast("기록을 불러오지 못했어요.");
+    }
   });
 
   if (resetHistoryBtn) resetHistoryBtn.addEventListener("click", () => {
@@ -3258,7 +3346,7 @@ let _savingStudentsNow = false;
 
   if (openGuideBtn) openGuideBtn.addEventListener("click", () => { window.location.href = "./guide.html"; });
 
-  if (demoBtn) demoBtn.addEventListener("click", () => {
+  if (demoBtn) demoBtn.addEventListener("click", (e) => { try{ e.preventDefault(); }catch{}
     try {
       pushUndo("demo");
     } catch {}
@@ -3509,6 +3597,8 @@ let _savingStudentsNow = false;
     const vioSet = new Set();
     for (const v of violations) { vioSet.add(v.aId); vioSet.add(v.bId); }
 
+    forbidColorMap = buildForbiddenGroupColorMap();
+
     for (let displayR = 0; displayR < rows; displayR++) {
       const dataRow = mapDisplayRowToDataRow(displayR);
 
@@ -3532,7 +3622,7 @@ let _savingStudentsNow = false;
           ctx.font = "800 16px system-ui";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          // export/print: hide aisle label text
+          ctx.fillText("통로", x + seatW / 2, y + seatH / 2);
           continue;
         }
 
@@ -3573,15 +3663,14 @@ let _savingStudentsNow = false;
           ctx.fillText("📌", x + 22, y + 18);
         }
 
-        const nm = seat.name ? seat.name : "";
-if (nm) {
-  ctx.fillStyle = "#000000";
-  ctx.font = "900 18px system-ui";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(nm, x + seatW / 2, y + seatH / 2);
-}
-// 모둠 표시(텍스트만)
+        const nm = seat.name ? seat.name : "빈자리";
+        ctx.fillStyle = seat.name ? "#e5e7eb" : "rgba(156,163,175,0.85)";
+        ctx.font = seat.name ? "900 18px system-ui" : "800 16px system-ui";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(nm, x + seatW / 2, y + seatH / 2);
+
+        // 모둠 표시(텍스트만)
         if (showGroups && showGroups.checked) {
           const gid = clamp(Number(seat.groupId ?? 1), 1, 8);
           ctx.fillStyle = "rgba(0,0,0,0.25)";
@@ -3763,7 +3852,93 @@ if (nm) {
     history = buildHistoryFromLedger(ledger);
   }
 
-  function updateRotationLedgerForSlot(slotId) {
+  
+
+function buildRotationHistoryText() {
+  const ledger = loadRotationLedger();
+  const list = loadSlotIndex();
+  const idToName = new Map(list.map(s => [String(s.id), String(s.name || "")]));
+  const rows = Object.keys(ledger || {}).map(id => String(id));
+  const ordered = list.map(s => String(s.id)).filter(id => ledger[id]);
+  const rest = rows.filter(id => !ordered.includes(id));
+  const all = [...ordered, ...rest];
+
+  const fmt = (arr) => (arr && arr.length ? arr.join(", ") : "-");
+  const lines = [];
+  lines.push("로테이션 기록 보기");
+  lines.push("");
+  if (!all.length) {
+    lines.push("(기록 없음)");
+  } else {
+    for (const id of all) {
+      const it = ledger[id] || { front: [], back: [], t: 0 };
+      const name = idToName.get(id) || `(삭제됨) ${id}`;
+      const t = it.t ? new Date(it.t).toLocaleString() : "-";
+      lines.push(`■ ${name} (${t})`);
+      lines.push(`  - 맨 앞줄: ${fmt(it.front)}`);
+      lines.push(`  - 맨 뒷줄: ${fmt(it.back)}`);
+      lines.push("");
+    }
+  }
+  lines.push("※ 배치도를 ‘저장(덮어쓰기)’ 하면, 해당 배치도의 로테이션 기록도 함께 덮어써집니다.");
+  return lines.join("\n");
+}
+
+function openRotationHistoryModal() {
+  const ledger = loadRotationLedger();
+  const list = loadSlotIndex();
+
+  const idToName = new Map(list.map(s => [String(s.id), String(s.name || "")]));
+  const rows = Object.keys(ledger || {}).map(id => String(id));
+  const ordered = list.map(s => String(s.id)).filter(id => ledger[id]);
+  const rest = rows.filter(id => !ordered.includes(id));
+  const all = [...ordered, ...rest];
+
+  const fmt = (arr) => (arr && arr.length ? arr.join(", ") : "-");
+  const tr = all.map(id => {
+    const it = ledger[id] || { front: [], back: [], t: 0 };
+    const name = idToName.get(id) || `(삭제됨) ${id}`;
+    const t = it.t ? new Date(it.t).toLocaleString() : "-";
+    return `<tr><td><b>${escapeHtml(name)}</b><div style="font-size:11px;opacity:.7;margin-top:2px;">${t}</div></td>` +
+           `<td>${escapeHtml(fmt(it.front))}</td><td>${escapeHtml(fmt(it.back))}</td></tr>`;
+  }).join("");
+
+  const overlay = document.createElement("div");
+  overlay.className = "simpleModalOverlay";
+  overlay.innerHTML = `
+    <div class="simpleModal" role="dialog" aria-modal="true">
+      <div class="simpleModalHead">
+        <h3>로테이션 기록 보기</h3>
+        <button class="ghost smallBtn" type="button" id="closeRotModal">닫기</button>
+      </div>
+      <div class="simpleModalBody">
+        <table>
+          <thead><tr><th style="width:26%;">배치도</th><th>맨 앞줄</th><th>맨 뒷줄</th></tr></thead>
+          <tbody>${tr || ""}</tbody>
+        </table>
+        <div style="margin-top:10px;font-size:12px;opacity:.8;line-height:1.6;">
+          ※ 배치도를 ‘저장(덮어쓰기)’ 하면, 해당 배치도의 로테이션 기록도 함께 덮어써집니다.
+        </div>
+      </div>
+      <div class="simpleModalFoot">
+        <button class="ghost smallBtn" type="button" id="closeRotModal2">닫기</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const close = () => { try { overlay.remove(); } catch {} };
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  overlay.querySelector("#closeRotModal")?.addEventListener("click", close);
+  overlay.querySelector("#closeRotModal2")?.addEventListener("click", close);
+}
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[ch]));
+}
+
+function updateRotationLedgerForSlot(slotId) {
     const id = String(slotId || "");
     if (!id) return;
 
@@ -3912,6 +4087,7 @@ if (nm) {
         showGroups: !!(showGroups && showGroups.checked),
         showGender: !!(showGender && showGender.checked),
         includeDiagonal: !!(includeDiagonal && includeDiagonal.checked),
+        includeSameGroup: !!(includeSameGroup && includeSameGroup.checked),
         groupMode: groupMode ? groupMode.value : "none",
         balanceLevels: !!(balanceLevels && balanceLevels.checked),
         rotateFront: !!(rotateFront && rotateFront.checked),
@@ -3954,6 +4130,7 @@ if (nm) {
     if (showGroups) showGroups.checked = !!ui.showGroups;
     if (showGender) showGender.checked = !!ui.showGender;
     if (includeDiagonal) includeDiagonal.checked = !!ui.includeDiagonal;
+    if (includeSameGroup) includeSameGroup.checked = !!ui.includeSameGroup;
     if (groupMode) groupMode.value = ui.groupMode ?? "none";
     if (balanceLevels) balanceLevels.checked = !!ui.balanceLevels;
     if (rotateFront) rotateFront.checked = !!ui.rotateFront;
@@ -4073,6 +4250,11 @@ if (nm) {
   });
 
   if (includeDiagonal) includeDiagonal.addEventListener("change", () => {
+    computeViolations();
+    renderGrid();
+  });
+
+  if (includeSameGroup) includeSameGroup.addEventListener("change", () => {
     computeViolations();
     renderGrid();
   });

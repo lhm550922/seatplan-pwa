@@ -93,7 +93,8 @@ a.demoLink{
   align-items:center;
   gap:6px;
   padding:10px 6px;
-  font-weight:900;
+  font-weight:400; /* not bold */
+  font-size:13px;  /* slightly smaller */
   color:rgba(255,255,255,.92);
   text-decoration:underline;
   background:transparent;
@@ -106,7 +107,17 @@ a.demoLink:hover{
   background:rgba(255,255,255,.04);
   text-decoration:underline;
 }
-a.demoLink .btnEmoji{font-size:18px; line-height:1;}
+a.demoLink .btnEmoji{font-size:16px; line-height:1;}
+
+/* Footer: split into 2 rows on mobile */
+footer.siteFooter{ text-align:center; margin:20px 0; font-size:0.9em; color:rgba(255,255,255,0.85); }
+footer.siteFooter a{ color:rgba(255,255,255,0.85); }
+footer.siteFooter .footerRow{ display:inline; }
+footer.siteFooter .footerGroupSep{ display:inline; margin:0 6px; opacity:.85; }
+@media (max-width: 640px){
+  footer.siteFooter .footerRow{ display:block; line-height:1.9; }
+  footer.siteFooter .footerGroupSep{ display:none; }
+}
 
 button.smallBtn{padding:8px 10px;font-weight:900;border-radius:10px;}
 

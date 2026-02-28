@@ -22,11 +22,6 @@
       <nav class="topNav" aria-label="사이트 메뉴">
         <a href="index.html">홈</a>
         <a href="guide.html">사용법</a>
-        <a href="faq.html">FAQ</a>
-        <a href="changelog.html">업데이트</a>
-        <a href="about.html">소개</a>
-        <a href="contact.html">문의</a>
-        <a href="tips.html">팁</a>
       </nav>
 <div class="status" style="display:none" aria-hidden="true">
         <div class="pill">Service Worker: <b id="swStatus">확인 중…</b></div>
@@ -47,11 +42,8 @@
       </p>
 
       <p style="margin:0 0 12px; line-height:1.65; opacity:.92;">
-  <span class="hintIcon" aria-hidden="true">💡</span>
-  <b>실행순서</b>
-  <span class="hintIcon" aria-hidden="true">💡</span><br>
-  책상 배열 → 학생 입력 → (선택사항: 성별/고정좌석/세부 옵션 등) → 자동 배치
-</p>
+        ⭐️ <b>실행순서</b> : 책상 배열 → 학생 입력 → (선택사항: 성별/고정좌석/세부 옵션 등) → 자동 배치 ⭐️
+      </p>
 
       <button id="toggleIntroBtn" class="ghost smallBtn" type="button" style="margin:0;">자세히 보기 ▾</button>
 
@@ -81,7 +73,7 @@
             <button id="openLayoutBtn" class="required">책상 배열</button>
             <button id="openStudentsBtn" class="required">학생 입력</button>
             <button id="autoFillBtn" class="required">자동 배치★</button>
-            <a id="demoBtn" class="demoLink" href="#"><span class="btnEmoji" aria-hidden="true">📝</span><span class="btnLabel">샘플</span></a>
+            <a id="demoBtn" class="demoLink" href="#" title="예시 학급(학생 24명)을 불러옵니다"><span class="btnEmoji" aria-hidden="true">📝</span><span class="btnLabel">예시 불러오기</span></a>
           </div>
 
           <div class="menuRow menuRowModes">
@@ -89,7 +81,7 @@
             <button id="modePinBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">📌</span><span class="btnLabel">고정 좌석</span></button>
             <button id="openOptionsBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">⚙️</span><span class="btnLabel">세부 옵션</span></button>
             <button id="undoBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">⬅️</span><span class="btnLabel">이전</span></button>
-            <button id="clearBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">🧹</span><span class="btnLabel">초기화</span></button>
+            <button id="clearBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">🔄</span><span class="btnLabel">초기화</span></button>
           </div>
         </div>
 
@@ -363,8 +355,8 @@
             <label class="sectionHeadToggle">
               <input id="balanceLevels" type="checkbox" />
               <span class="sectionTitle">모둠별 수준 분산</span>
-              <div class="sectionHeadDescInline descBlock">- 모둠별 학습수준(상/중/하)이 고르게 섞이도록 배치해요</div>
-              <div class="sectionHeadDescInline descBlock">- 모둠 확인 및 변경은 홈 화면의 '모둠 번호 표시' 체크 후 가능해요</div>
+              <div class="sectionHeadDesc descBlock">- 모둠별 학습수준(상/중/하)이 고르게 섞이도록 배치해요</div>
+              <div class="sectionHeadDesc descBlock">- 모둠 확인 및 변경은 홈 화면의 '모둠 번호 표시' 체크 후 가능해요</div>
             </label>
           </div>
 </div>
@@ -475,13 +467,14 @@
 
   <script src="./app.js?v=0.91"></script>
 
-<footer style="text-align:center; margin:20px 0; font-size:0.9em; color:rgba(255,255,255,0.85);">
-  <a href="guide.html" style="color:rgba(255,255,255,0.85);">사용법</a> |
-  <a href="faq.html" style="color:rgba(255,255,255,0.85);">FAQ</a> |
-  <a href="changelog.html" style="color:rgba(255,255,255,0.85);">업데이트</a> |
+    <footer style="text-align:center; margin:20px 0; font-size:0.9em; color:rgba(255,255,255,0.85);">
   <a href="about.html" style="color:rgba(255,255,255,0.85);">서비스 소개</a> |
+  <a href="faq.html" style="color:rgba(255,255,255,0.85);">FAQ</a> |
+  <a href="contact.html" style="color:rgba(255,255,255,0.85);">문의</a> |
+  <a href="tips.html" style="color:rgba(255,255,255,0.85);">연구</a> |
   <a href="privacy.html" style="color:rgba(255,255,255,0.85);">개인정보처리방침</a> |
-  <a href="terms.html" style="color:rgba(255,255,255,0.85);">이용약관</a>
+  <a href="terms.html" style="color:rgba(255,255,255,0.85);">이용약관</a> |
+  <a href="changelog.html" style="color:rgba(255,255,255,0.85);">업데이트</a>
 </footer>
 
 

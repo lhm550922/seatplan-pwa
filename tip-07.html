@@ -6,18 +6,25 @@
   <title>SeatPlan | 7) 자리 바꾸기 주기: ‘크게 한 번’보다 ‘작게 자주’가 안정적</title>
   <link rel="stylesheet" href="./styles.css?v=0.91" />
   <style>
-    .wrap{max-width:980px;margin:0 auto;padding:16px}
+    html,body{overflow-x:hidden;}
+    body{color:#374151;}
+
+    .wrap{max-width:980px;margin:0 auto;padding:16px;box-sizing:border-box;width:min(980px, calc(100% - 32px));}
     header.pageTop{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-    h1{margin:0;font-size:20px}
+    h1{margin:0;font-size:20px;color:#ffffff}
     .meta{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 0;font-size:12px;opacity:.85}
     .pill{border:1px solid rgba(0,0,0,.15);border-radius:999px;padding:2px 8px}
-    .card{border:1px solid rgba(0,0,0,.12);border-radius:12px;padding:14px;background:rgba(255,255,255,.7);margin-top:12px}
-    .secTitle{margin:10px 0 6px;font-weight:700}
+    .card{border:1px solid rgba(0,0,0,.12);border-radius:12px;padding:14px;background:rgba(255,255,255,.7);margin-top:12px;color:#374151;}
+    .secTitle{margin:10px 0 6px;font-weight:700;color:#111827;}
     p{line-height:1.65;margin:6px 0}
     ul{margin:6px 0 0 18px}
-    .checklist{margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.04)}
-    .refs{margin-top:16px;border-top:1px dashed rgba(0,0,0,.25);padding-top:12px}
-  </style>
+    .refs a{color:rgba(255,255,255,0.85);}
+    .refs a:hover{opacity:.95;}
+    .refs{margin-top:16px;border-top:1px dashed rgba(0,0,0,.25);padding-top:12px;color:rgba(255,255,255,0.78)}
+      .navRow{display:flex;justify-content:space-between;gap:10px;margin-top:12px;}
+    .navLink{display:inline-flex;align-items:center;gap:6px;padding:10px 12px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.55);color:#111827;text-decoration:none;font-weight:800;}
+    .navLink:hover{background:rgba(255,255,255,.72);}
+</style>
 </head>
 <body>
   <div class="wrap">
@@ -26,30 +33,30 @@
         <h1>7) 자리 바꾸기 주기: ‘크게 한 번’보다 ‘작게 자주’가 안정적</h1>
         <div class="meta"><span class="pill">연구 기반</span><span class="pill">초등/교실 운영</span></div>
       </div>
-      <nav class="topNav">
-        <a href="./index.html?v=0.91">홈</a>
-        <a href="./guide.html?v=0.91">사용법</a>
-        <a href="./faq.html?v=0.91">FAQ</a>
-        <a href="./changelog.html?v=0.91">업데이트</a>
-        <a href="./about.html?v=0.91">소개</a>
-        <a href="./contact.html?v=0.91">문의</a>
-        <a href="./tips.html?v=0.91">팁</a>
+      <nav class="topNav" aria-label="사이트 메뉴">
+        <a href="index.html">홈</a>
+        <a href="guide.html">사용법</a>
       </nav>
     </header>
 
     <article class="card">
       <div class="secTitle">연구 요약(출처 포함)</div>
-      <p>좌석표 개입 관련 논의에서는 변화 직후 교실 역학이 흔들릴 수 있어 관찰과 조정이 중요하다는 점이 반복됩니다(R7).</p>
-      <div class="secTitle">해석</div>
-      <p>전원 대이동은 반발이 커요. 문제 좌석 중심으로 2~3명 단위 미세조정을 하면 교실 전체가 덜 흔들립니다. “관찰 주간”을 함께 선언하면 효과가 더 안정적입니다.</p>
-      <div class="secTitle">교실 적용</div>
+      <p>좌석표를 ‘한 번에 완벽하게’ 만들기보다, 적용 후 관찰하고 조정하는 방식이 필요하다는 논의가 좌석 개입 관련 정리에서 반복됩니다(R7). 자리 바꾸기 직후에는 관계나 분위기가 흔들릴 수 있기 때문에, 변화 폭을 줄이고(‘작게’) 그 대신 관찰-조정을 자주 하는 방식이 더 안정적일 수 있다는 관점입니다.</p>
+
+      <div class="secTitle">쉽게 해석하면</div>
+      <p>자리를 바꾸는 주기에는 정답이 없지만, 너무 자주 전면 교체하면 아이들이 적응하기 전에 또 바뀌어 불안해질 수 있어요. 반대로 너무 오래 고정하면 문제 조합이 굳어질 수 있습니다. 핵심은 **바꾸는 이유와 기준을 학생이 이해할 수 있게 만드는 것**입니다.</p>
+
+      <div class="secTitle">교실 적용 아이디어</div>
       <ul>
-<li>전체 변경은 학기 초/단원 전환처럼 ‘명분’이 있을 때.</li>
-<li>평소에는 2~3명 단위 조정 + 관찰 주간 공지.</li>
-<li>SeatPlan으로 금지쌍/고정좌석 먼저 반영 후 자동배치 → 미세조정.</li>
-</ul>
-      <div class='checklist'><b>현장 체크리스트(3줄)</b><ul><li>전체 변경/미세조정 기준을 미리 정하기</li><li>변경 후 1주 관찰 계획 세우기</li><li>조정 목적을 짧게 안내하기</li></ul></div>
-      <div style="display:flex;justify-content:space-between;gap:10px;margin-top:12px;"><a href="./tip-06.html?v=0.91" class="ghost smallBtn">← 이전 글</a><a href="./tip-08.html?v=0.91" class="ghost smallBtn">다음 글 →</a></div>
+        <li>전면 교체는 단원 전환(4~6주) 같은 큰 구간에 하고, 중간에는 ‘문제 조합만 부분 수정’하는 방식이 부담이 적습니다.</li>
+<li>자리 바뀌는 날은 규칙을 1~2개만 강조해요. 예) “오늘은 새 짝에게 인사하기”, “첫 주는 자리 관련 불평 대신 요청 카드를 쓰기”.</li>
+<li>SeatPlan으로 빠르게 1차 배치를 만든 뒤, 1주 관찰 → 필요한 부분만 수동으로 고치는 흐름이 현실적입니다.</li>
+      </ul>
+
+      <div class="navRow">
+        <a href="./tips.html?v=0.91" class="navLink">← 목록</a>
+        <a href="./tip-08.html?v=0.91" class="navLink">다음 글 →</a>
+      </div>
     </article>
 
     <section class="refs">
@@ -60,11 +67,15 @@
       </p>
     </section>
 
-    <footer class="footerLinks" style="margin-top: 18px;">
-      <a href="./privacy.html?v=0.91">🔒 개인정보처리방침</a>
-      <a href="./terms.html?v=0.91">📄 이용약관</a>
-      <a href="./contact.html?v=0.91">✉️ 문의</a>
-    </footer>
+        <footer style="text-align:center; margin:20px 0; font-size:0.9em; color:rgba(255,255,255,0.85);">
+  <a href="about.html" style="color:rgba(255,255,255,0.85);">서비스 소개</a> |
+  <a href="faq.html" style="color:rgba(255,255,255,0.85);">FAQ</a> |
+  <a href="contact.html" style="color:rgba(255,255,255,0.85);">문의</a> |
+  <a href="tips.html" style="color:rgba(255,255,255,0.85);">연구</a> |
+  <a href="privacy.html" style="color:rgba(255,255,255,0.85);">개인정보처리방침</a> |
+  <a href="terms.html" style="color:rgba(255,255,255,0.85);">이용약관</a> |
+  <a href="changelog.html" style="color:rgba(255,255,255,0.85);">업데이트</a>
+</footer>
   </div>
 </body>
 </html>

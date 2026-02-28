@@ -6,18 +6,25 @@
   <title>SeatPlan | 5) 금지쌍·완충좌석: ‘떼어놓기’ 원칙 세우기</title>
   <link rel="stylesheet" href="./styles.css?v=0.91" />
   <style>
-    .wrap{max-width:980px;margin:0 auto;padding:16px}
+    html,body{overflow-x:hidden;}
+    body{color:#374151;}
+
+    .wrap{max-width:980px;margin:0 auto;padding:16px;box-sizing:border-box;width:min(980px, calc(100% - 32px));}
     header.pageTop{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-    h1{margin:0;font-size:20px}
+    h1{margin:0;font-size:20px;color:#ffffff}
     .meta{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 0;font-size:12px;opacity:.85}
     .pill{border:1px solid rgba(0,0,0,.15);border-radius:999px;padding:2px 8px}
-    .card{border:1px solid rgba(0,0,0,.12);border-radius:12px;padding:14px;background:rgba(255,255,255,.7);margin-top:12px}
-    .secTitle{margin:10px 0 6px;font-weight:700}
+    .card{border:1px solid rgba(0,0,0,.12);border-radius:12px;padding:14px;background:rgba(255,255,255,.7);margin-top:12px;color:#374151;}
+    .secTitle{margin:10px 0 6px;font-weight:700;color:#111827;}
     p{line-height:1.65;margin:6px 0}
     ul{margin:6px 0 0 18px}
-    .checklist{margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.04)}
-    .refs{margin-top:16px;border-top:1px dashed rgba(0,0,0,.25);padding-top:12px}
-  </style>
+    .refs a{color:rgba(255,255,255,0.85);}
+    .refs a:hover{opacity:.95;}
+    .refs{margin-top:16px;border-top:1px dashed rgba(0,0,0,.25);padding-top:12px;color:rgba(255,255,255,0.78)}
+      .navRow{display:flex;justify-content:space-between;gap:10px;margin-top:12px;}
+    .navLink{display:inline-flex;align-items:center;gap:6px;padding:10px 12px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.55);color:#111827;text-decoration:none;font-weight:800;}
+    .navLink:hover{background:rgba(255,255,255,.72);}
+</style>
 </head>
 <body>
   <div class="wrap">
@@ -26,30 +33,30 @@
         <h1>5) 금지쌍·완충좌석: ‘떼어놓기’ 원칙 세우기</h1>
         <div class="meta"><span class="pill">연구 기반</span><span class="pill">초등/교실 운영</span></div>
       </div>
-      <nav class="topNav">
-        <a href="./index.html?v=0.91">홈</a>
-        <a href="./guide.html?v=0.91">사용법</a>
-        <a href="./faq.html?v=0.91">FAQ</a>
-        <a href="./changelog.html?v=0.91">업데이트</a>
-        <a href="./about.html?v=0.91">소개</a>
-        <a href="./contact.html?v=0.91">문의</a>
-        <a href="./tips.html?v=0.91">팁</a>
+      <nav class="topNav" aria-label="사이트 메뉴">
+        <a href="index.html">홈</a>
+        <a href="guide.html">사용법</a>
       </nav>
     </header>
 
     <article class="card">
       <div class="secTitle">연구 요약(출처 포함)</div>
-      <p>좌석표를 행동·관계 조절을 위한 개입으로 다루는 연구/정리들이 있고(R7), 좌석 근접/거리와 또래 관계·지위의 연관을 분석한 연구도 있습니다(R8). 즉 자리배치가 관계 역학과 무관하다고 단정하기 어렵다는 흐름이 있습니다.</p>
-      <div class="secTitle">해석</div>
-      <p>현장에서는 “무조건 멀리”보다 <b>거리 규칙 + 완충 좌석(안정 학생)</b>이 더 지속 가능할 때가 많습니다. 또 ‘벌’처럼 보이지 않게 기능적으로 설명하는 것이 중요합니다.</p>
-      <div class="secTitle">교실 적용</div>
+      <p>관계 갈등이나 행동 문제를 고려한 좌석 배치에 대해서는, 좌석표를 ‘관계·행동을 조절하는 교실 개입’으로 다루는 정리/리뷰들이 있습니다(R7). 또 다른 연구는 교실 안에서 누가 누구와 가까이 앉는지가 또래 관계나 사회적 지위와 연결될 수 있음을 분석하기도 합니다(R8). 즉 ‘떼어놓기’는 단순 벌이 아니라, **학급 안전과 학습을 위한 환경 조정**으로 설명하는 것이 더 적절하다는 흐름입니다.</p>
+
+      <div class="secTitle">쉽게 해석하면</div>
+      <p>즉 금지쌍/완충좌석은 ‘누구를 떼어놓기’가 목적이라기보다, **수업이 굴러가게 만드는 안전장치**로 이해하면 좋아요. 중요한 건 기준을 너무 복잡하게 만들지 않는 것과, 아이가 낙인처럼 느끼지 않도록 설명 방식을 조심하는 것입니다.</p>
+
+      <div class="secTitle">교실 적용 아이디어</div>
       <ul>
-<li>규칙을 숫자로: “A-B는 2칸 이상”, “같은 줄 금지”.</li>
-<li>완충 좌석: 사이에 안정적인 학생 1명.</li>
-<li>바꾼 뒤 1주는 적응/관찰 주간으로 공지.</li>
-</ul>
-      <div class='checklist'><b>현장 체크리스트(3줄)</b><ul><li>금지쌍을 ‘사람’이 아니라 ‘거리 규칙’으로 정의</li><li>완충(안정 학생) 전략 준비</li><li>자리 변경 후 관찰 기간 확보</li></ul></div>
-      <div style="display:flex;justify-content:space-between;gap:10px;margin-top:12px;"><a href="./tip-04.html?v=0.91" class="ghost smallBtn">← 이전 글</a><a href="./tip-06.html?v=0.91" class="ghost smallBtn">다음 글 →</a></div>
+        <li>금지쌍은 ‘최소’로 잡는 게 운영에 유리합니다. 정말 수업을 깨는 조합 2~3쌍만 먼저 지정하고, 나머지는 관찰하면서 추가해요.</li>
+<li>완충좌석은 ‘중간에 한 명 끼우기’만이 아니라, 통로/교사 동선/시야를 활용해 자연스럽게 거리를 만드는 방식도 좋습니다.</li>
+<li>자리 변경 이유는 “벌”이 아니라 “수업이 잘 되게 하려는 조정”으로 말해요. 예) “서로 이야기할 시간이 너무 늘어서, 잠깐 떨어져 앉아보자.”</li>
+      </ul>
+
+      <div class="navRow">
+        <a href="./tips.html?v=0.91" class="navLink">← 목록</a>
+        <a href="./tip-06.html?v=0.91" class="navLink">다음 글 →</a>
+      </div>
     </article>
 
     <section class="refs">
@@ -61,11 +68,15 @@
       </p>
     </section>
 
-    <footer class="footerLinks" style="margin-top: 18px;">
-      <a href="./privacy.html?v=0.91">🔒 개인정보처리방침</a>
-      <a href="./terms.html?v=0.91">📄 이용약관</a>
-      <a href="./contact.html?v=0.91">✉️ 문의</a>
-    </footer>
+        <footer style="text-align:center; margin:20px 0; font-size:0.9em; color:rgba(255,255,255,0.85);">
+  <a href="about.html" style="color:rgba(255,255,255,0.85);">서비스 소개</a> |
+  <a href="faq.html" style="color:rgba(255,255,255,0.85);">FAQ</a> |
+  <a href="contact.html" style="color:rgba(255,255,255,0.85);">문의</a> |
+  <a href="tips.html" style="color:rgba(255,255,255,0.85);">연구</a> |
+  <a href="privacy.html" style="color:rgba(255,255,255,0.85);">개인정보처리방침</a> |
+  <a href="terms.html" style="color:rgba(255,255,255,0.85);">이용약관</a> |
+  <a href="changelog.html" style="color:rgba(255,255,255,0.85);">업데이트</a>
+</footer>
   </div>
 </body>
 </html>

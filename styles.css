@@ -52,6 +52,10 @@ body{
 .header h1{margin:0 0 6px;font-size:24px}
 .sub{margin:0;color:var(--muted);max-width:920px;line-height:1.35}
 
+/* Static pages (about/faq/contact/terms/privacy/changelog/guide): keep nav on the same row as the title */
+.pageHeaderTop{align-items:flex-start;}
+.pageHeaderTop .topNav{margin-top:2px;}
+
 .status{display:flex;gap:8px;flex-wrap:wrap}
 .pill{
   display:inline-flex;gap:6px;align-items:center;
@@ -904,6 +908,7 @@ select{
   display:flex;
   align-items:center;
   gap:10px;
+  flex-wrap:wrap;
   cursor:pointer;
   user-select:none;
   font-weight:1000;
@@ -959,6 +964,14 @@ select{
   font-weight:800;
   margin-left:6px;
   line-height:1.25;
+}
+
+/* 섹션 제목 아래 설명(아랫줄) */
+.sectionHeadToggle .descBlock{
+  flex: 0 0 100%;
+  width: 100%;
+  margin-left: 28px; /* 체크박스+간격만큼 들여쓰기 */
+  margin-top: -2px;
 }
 
 

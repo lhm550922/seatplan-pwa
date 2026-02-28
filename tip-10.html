@@ -6,18 +6,25 @@
   <title>SeatPlan | 10) SeatPlan 루틴: ‘빠른 1차 배치 → 관찰 → 미세조정’</title>
   <link rel="stylesheet" href="./styles.css?v=0.91" />
   <style>
-    .wrap{max-width:980px;margin:0 auto;padding:16px}
+    html,body{overflow-x:hidden;}
+    body{color:#374151;}
+
+    .wrap{max-width:980px;margin:0 auto;padding:16px;box-sizing:border-box;width:min(980px, calc(100% - 32px));}
     header.pageTop{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-    h1{margin:0;font-size:20px}
+    h1{margin:0;font-size:20px;color:#ffffff}
     .meta{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 0;font-size:12px;opacity:.85}
     .pill{border:1px solid rgba(0,0,0,.15);border-radius:999px;padding:2px 8px}
-    .card{border:1px solid rgba(0,0,0,.12);border-radius:12px;padding:14px;background:rgba(255,255,255,.7);margin-top:12px}
-    .secTitle{margin:10px 0 6px;font-weight:700}
+    .card{border:1px solid rgba(0,0,0,.12);border-radius:12px;padding:14px;background:rgba(255,255,255,.7);margin-top:12px;color:#374151;}
+    .secTitle{margin:10px 0 6px;font-weight:700;color:#111827;}
     p{line-height:1.65;margin:6px 0}
     ul{margin:6px 0 0 18px}
-    .checklist{margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.04)}
-    .refs{margin-top:16px;border-top:1px dashed rgba(0,0,0,.25);padding-top:12px}
-  </style>
+    .refs a{color:rgba(255,255,255,0.85);}
+    .refs a:hover{opacity:.95;}
+    .refs{margin-top:16px;border-top:1px dashed rgba(0,0,0,.25);padding-top:12px;color:rgba(255,255,255,0.78)}
+      .navRow{display:flex;justify-content:space-between;gap:10px;margin-top:12px;}
+    .navLink{display:inline-flex;align-items:center;gap:6px;padding:10px 12px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.55);color:#111827;text-decoration:none;font-weight:800;}
+    .navLink:hover{background:rgba(255,255,255,.72);}
+</style>
 </head>
 <body>
   <div class="wrap">
@@ -26,30 +33,30 @@
         <h1>10) SeatPlan 루틴: ‘빠른 1차 배치 → 관찰 → 미세조정’</h1>
         <div class="meta"><span class="pill">연구 기반</span><span class="pill">초등/교실 운영</span></div>
       </div>
-      <nav class="topNav">
-        <a href="./index.html?v=0.91">홈</a>
-        <a href="./guide.html?v=0.91">사용법</a>
-        <a href="./faq.html?v=0.91">FAQ</a>
-        <a href="./changelog.html?v=0.91">업데이트</a>
-        <a href="./about.html?v=0.91">소개</a>
-        <a href="./contact.html?v=0.91">문의</a>
-        <a href="./tips.html?v=0.91">팁</a>
+      <nav class="topNav" aria-label="사이트 메뉴">
+        <a href="index.html">홈</a>
+        <a href="guide.html">사용법</a>
       </nav>
     </header>
 
     <article class="card">
       <div class="secTitle">연구 요약(출처 포함)</div>
-      <p>자리배치가 과제·개인차와 연결될 수 있다는 논의(R1, R3)는, “완벽한 배치”를 한 번에 찾기보다 <b>빠르게 배치하고 관찰하며 조정</b>하는 접근이 합리적임을 뒷받침합니다.</p>
-      <div class="secTitle">해석</div>
-      <p>교실은 계속 바뀝니다(전학, 갈등, 단원 전환). 그래서 시간과 에너지를 아끼는 전략은 “1차 배치”를 빠르게 끝내고, 운영 중 필요한 것만 고치는 방식입니다.</p>
-      <div class="secTitle">교실 적용</div>
+      <p>Wannarka와 Ruhl(2008)의 리뷰(R1)와 Tobia 등(2022)의 연구(R3)가 공통으로 시사하는 점은, 자리배치의 효과가 ‘한 번의 완벽한 설계’로 결정되기보다 **과제·학생 특성·운영 규칙과 함께** 만들어진다는 것입니다. 그래서 SeatPlan을 쓸 때도 ‘빠른 1차 배치 → 1~2주 관찰 → 작은 수정’처럼 단계적으로 다듬는 루틴이 현실적이고, 교실 부담도 줄일 수 있어요.</p>
+
+      <div class="secTitle">쉽게 해석하면</div>
+      <p>현장에서 중요한 건 속도와 반복입니다. 배치를 만드는 데 시간을 너무 많이 쓰면, 정작 관찰과 피드백(조정)이 늦어져요. SeatPlan 같은 도구는 ‘빠른 1차 배치’를 돕고, 교사는 그 뒤에 ‘관찰 → 미세조정’을 통해 완성도를 올리는 역할을 하면 됩니다.</p>
+
+      <div class="secTitle">교실 적용 아이디어</div>
       <ul>
-<li>1차 배치: 책상 배열 → 학생 입력 → 금지쌍/고정좌석(필요 시) → 자동 배치.</li>
-<li>관찰: 1주 운영하며 소란/집중/관계 메모(2~3개 항목).</li>
-<li>미세조정: 2~3명만 이동 + 적응 주간 안내.</li>
-</ul>
-      <div class='checklist'><b>현장 체크리스트(3줄)</b><ul><li>첫 배치를 ‘출발점’으로 생각하기</li><li>관찰 항목을 2~3개로 제한</li><li>미세조정은 소수 이동으로 빠르게</li></ul></div>
-      <div style="display:flex;justify-content:space-between;gap:10px;margin-top:12px;"><a href="./tip-09.html?v=0.91" class="ghost smallBtn">← 이전 글</a><a href="./tips.html?v=0.91" class="ghost smallBtn">다음 글 →</a></div>
+        <li>1차 배치: 금지쌍/고정좌석 같은 ‘필수 조건’만 넣고 빠르게 자동 배치를 한 번 돌려요.</li>
+<li>1주 관찰: 소란, 과제완료, 갈등 같은 지표를 아주 간단히 체크해요(메모로 충분).</li>
+<li>미세조정: 문제가 되는 조합만 바꾸고, 나머지는 유지해 안정감을 줍니다. 이렇게 2~3회 반복하면 ‘내 반에 맞는 규칙’이 생겨요.</li>
+      </ul>
+
+      <div class="navRow">
+        <a href="./tips.html?v=0.91" class="navLink">← 목록</a>
+        <a href="./tips.html?v=0.91" class="navLink">목록 →</a>
+      </div>
     </article>
 
     <section class="refs">
@@ -61,11 +68,15 @@
       </p>
     </section>
 
-    <footer class="footerLinks" style="margin-top: 18px;">
-      <a href="./privacy.html?v=0.91">🔒 개인정보처리방침</a>
-      <a href="./terms.html?v=0.91">📄 이용약관</a>
-      <a href="./contact.html?v=0.91">✉️ 문의</a>
-    </footer>
+        <footer style="text-align:center; margin:20px 0; font-size:0.9em; color:rgba(255,255,255,0.85);">
+  <a href="about.html" style="color:rgba(255,255,255,0.85);">서비스 소개</a> |
+  <a href="faq.html" style="color:rgba(255,255,255,0.85);">FAQ</a> |
+  <a href="contact.html" style="color:rgba(255,255,255,0.85);">문의</a> |
+  <a href="tips.html" style="color:rgba(255,255,255,0.85);">연구</a> |
+  <a href="privacy.html" style="color:rgba(255,255,255,0.85);">개인정보처리방침</a> |
+  <a href="terms.html" style="color:rgba(255,255,255,0.85);">이용약관</a> |
+  <a href="changelog.html" style="color:rgba(255,255,255,0.85);">업데이트</a>
+</footer>
   </div>
 </body>
 </html>

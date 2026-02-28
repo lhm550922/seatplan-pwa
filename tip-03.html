@@ -6,18 +6,25 @@
   <title>SeatPlan | 3) 교사마다 자리배치가 다른 이유: 교육관 차이를 ‘연구로’ 설명하기</title>
   <link rel="stylesheet" href="./styles.css?v=0.91" />
   <style>
-    .wrap{max-width:980px;margin:0 auto;padding:16px}
+    html,body{overflow-x:hidden;}
+    body{color:#374151;}
+
+    .wrap{max-width:980px;margin:0 auto;padding:16px;box-sizing:border-box;width:min(980px, calc(100% - 32px));}
     header.pageTop{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-    h1{margin:0;font-size:20px}
+    h1{margin:0;font-size:20px;color:#ffffff}
     .meta{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 0;font-size:12px;opacity:.85}
     .pill{border:1px solid rgba(0,0,0,.15);border-radius:999px;padding:2px 8px}
-    .card{border:1px solid rgba(0,0,0,.12);border-radius:12px;padding:14px;background:rgba(255,255,255,.7);margin-top:12px}
-    .secTitle{margin:10px 0 6px;font-weight:700}
+    .card{border:1px solid rgba(0,0,0,.12);border-radius:12px;padding:14px;background:rgba(255,255,255,.7);margin-top:12px;color:#374151;}
+    .secTitle{margin:10px 0 6px;font-weight:700;color:#111827;}
     p{line-height:1.65;margin:6px 0}
     ul{margin:6px 0 0 18px}
-    .checklist{margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(0,0,0,.04)}
-    .refs{margin-top:16px;border-top:1px dashed rgba(0,0,0,.25);padding-top:12px}
-  </style>
+    .refs a{color:rgba(255,255,255,0.85);}
+    .refs a:hover{opacity:.95;}
+    .refs{margin-top:16px;border-top:1px dashed rgba(0,0,0,.25);padding-top:12px;color:rgba(255,255,255,0.78)}
+      .navRow{display:flex;justify-content:space-between;gap:10px;margin-top:12px;}
+    .navLink{display:inline-flex;align-items:center;gap:6px;padding:10px 12px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.55);color:#111827;text-decoration:none;font-weight:800;}
+    .navLink:hover{background:rgba(255,255,255,.72);}
+</style>
 </head>
 <body>
   <div class="wrap">
@@ -26,30 +33,30 @@
         <h1>3) 교사마다 자리배치가 다른 이유: 교육관 차이를 ‘연구로’ 설명하기</h1>
         <div class="meta"><span class="pill">연구 기반</span><span class="pill">초등/교실 운영</span></div>
       </div>
-      <nav class="topNav">
-        <a href="./index.html?v=0.91">홈</a>
-        <a href="./guide.html?v=0.91">사용법</a>
-        <a href="./faq.html?v=0.91">FAQ</a>
-        <a href="./changelog.html?v=0.91">업데이트</a>
-        <a href="./about.html?v=0.91">소개</a>
-        <a href="./contact.html?v=0.91">문의</a>
-        <a href="./tips.html?v=0.91">팁</a>
+      <nav class="topNav" aria-label="사이트 메뉴">
+        <a href="index.html">홈</a>
+        <a href="guide.html">사용법</a>
       </nav>
     </header>
 
     <article class="card">
       <div class="secTitle">연구 요약(출처 포함)</div>
-      <p>상위 초등 교사들을 대상으로 한 연구는, 교사들이 좌석 배치 목표로 학업과 사회정서를 함께 언급하지만 같은 목표라도 전략은 서로 다르거나 반대가 될 수 있음을 보여줍니다(R2).</p>
-      <div class="secTitle">해석</div>
-      <p>즉 “정답”을 단정하기보다, 자리배치를 <b>목표-조건-선택지</b>로 설명하는 것이 반발을 줄이는 데 도움이 됩니다. ‘다른 방식’이 존재한다는 사실을 연구가 보여준다고 말할 수 있어요.</p>
-      <div class="secTitle">교실 적용</div>
+      <p>Hoekstra 등(2023)은 초등 상급 학년 교사들이 좌석 배치를 어떻게 ‘이유를 갖고’ 결정하는지, 교사 인터뷰/분석을 통해 정리한 연구(R2)입니다. 같은 학급이라도 교사가 무엇을 중요하게 보느냐(학업 성취, 관계 안정, 참여 촉진 등)에 따라 ‘좋은 자리배치’의 기준이 달라질 수 있음을 보여주며, 결국 배치는 교사의 목표를 실천하는 하나의 도구라는 점을 강조합니다.</p>
+
+      <div class="secTitle">쉽게 해석하면</div>
+      <p>이 관점이 도움이 되는 이유는, 자리배치가 ‘정답 찾기’가 아니라 ‘내 반에 맞는 운영 원리 세우기’라는 점을 분명히 해주기 때문입니다. 같은 학급이라도 어떤 교사는 갈등을 최소화하는 배치를 우선하고, 어떤 교사는 학습 참여를 끌어올리는 배치를 우선할 수 있어요. 둘 다 목표가 명확하면 좋은 전략이 될 수 있습니다.</p>
+
+      <div class="secTitle">교실 적용 아이디어</div>
       <ul>
-<li>글/안내문 서두에 합의 문장 1줄: “자리배치는 목표에 따라 달라질 수 있어요.”</li>
-<li>이번 기간 우선 목표를 선언(집중/협동/관계 안정 등).</li>
-<li>다음 기간에 목표를 바꿔 실험하는 순환 운영을 예고.</li>
-</ul>
-      <div class='checklist'><b>현장 체크리스트(3줄)</b><ul><li>내 배치 기준이 ‘호불호’가 아닌 ‘목표’로 설명되는지 점검</li><li>다른 교사의 전략도 목표가 다르면 가능하다는 프레임 유지</li><li>다음 배치 변경 시점을 미리 공지</li></ul></div>
-      <div style="display:flex;justify-content:space-between;gap:10px;margin-top:12px;"><a href="./tip-02.html?v=0.91" class="ghost smallBtn">← 이전 글</a><a href="./tip-04.html?v=0.91" class="ghost smallBtn">다음 글 →</a></div>
+        <li>내가 중요하게 보는 목표를 2가지로만 정리해요. 예) ①수업 집중 ②관계 안정 / 또는 ①발표·토론 참여 ②협동태도</li>
+<li>목표에 맞는 ‘기본 배치’를 하나 정하고, 문제가 생길 때 바꾸는 기준(예: 소란이 일정 수준 이상이면 열형으로)도 미리 정해두면 결정이 쉬워져요.</li>
+<li>학부모/학생에게는 ‘왜 이렇게 배치했는지’를 한 문장으로 설명하는 버전을 준비해두면, 자리 변경 요청이 왔을 때도 일관되게 대응할 수 있습니다.</li>
+      </ul>
+
+      <div class="navRow">
+        <a href="./tips.html?v=0.91" class="navLink">← 목록</a>
+        <a href="./tip-04.html?v=0.91" class="navLink">다음 글 →</a>
+      </div>
     </article>
 
     <section class="refs">
@@ -60,11 +67,15 @@
       </p>
     </section>
 
-    <footer class="footerLinks" style="margin-top: 18px;">
-      <a href="./privacy.html?v=0.91">🔒 개인정보처리방침</a>
-      <a href="./terms.html?v=0.91">📄 이용약관</a>
-      <a href="./contact.html?v=0.91">✉️ 문의</a>
-    </footer>
+        <footer style="text-align:center; margin:20px 0; font-size:0.9em; color:rgba(255,255,255,0.85);">
+  <a href="about.html" style="color:rgba(255,255,255,0.85);">서비스 소개</a> |
+  <a href="faq.html" style="color:rgba(255,255,255,0.85);">FAQ</a> |
+  <a href="contact.html" style="color:rgba(255,255,255,0.85);">문의</a> |
+  <a href="tips.html" style="color:rgba(255,255,255,0.85);">연구</a> |
+  <a href="privacy.html" style="color:rgba(255,255,255,0.85);">개인정보처리방침</a> |
+  <a href="terms.html" style="color:rgba(255,255,255,0.85);">이용약관</a> |
+  <a href="changelog.html" style="color:rgba(255,255,255,0.85);">업데이트</a>
+</footer>
   </div>
 </body>
 </html>

@@ -38,6 +38,37 @@
   --g8b: rgba(244,114,182,.55); --g8bg: rgba(244,114,182,.14);
 }
 
+/* ===================== Site footer ===================== */
+.siteFooter{
+  text-align:center;
+  margin:20px 0;
+  font-size:0.9em;
+  color:rgba(255,255,255,0.85);
+}
+.siteFooter a{
+  color:inherit;
+  text-decoration:none;
+}
+.siteFooter a:hover{
+  text-decoration:underline;
+}
+.footerBreak{ display:none; }
+@media (max-width: 520px){
+  .footerBreak{ display:block; height:6px; }
+}
+
+/* Intro(접힌 소개) - 본문이 더 먼저 보이도록 살짝 톤 다운 */
+.introCard{ padding:14px 16px; }
+.introCard .introSummary{ opacity:0.9; }
+.introCard details{ margin-top:10px; }
+.introSummaryToggle{
+  cursor:pointer;
+  display:inline-block;
+  margin-top:6px;
+  color:rgba(255,255,255,0.85);
+}
+.introDetailsBody{ margin-top:10px; opacity:0.92; }
+
 *{box-sizing:border-box}
 body{
   margin:0;
@@ -93,8 +124,7 @@ a.demoLink{
   align-items:center;
   gap:6px;
   padding:10px 6px;
-  font-weight:400; /* not bold */
-  font-size:13px;  /* slightly smaller */
+  font-weight:900;
   color:rgba(255,255,255,.92);
   text-decoration:underline;
   background:transparent;
@@ -107,17 +137,7 @@ a.demoLink:hover{
   background:rgba(255,255,255,.04);
   text-decoration:underline;
 }
-a.demoLink .btnEmoji{font-size:16px; line-height:1;}
-
-/* Footer: split into 2 rows on mobile */
-footer.siteFooter{ text-align:center; margin:20px 0; font-size:0.9em; color:rgba(255,255,255,0.85); }
-footer.siteFooter a{ color:rgba(255,255,255,0.85); }
-footer.siteFooter .footerRow{ display:inline; }
-footer.siteFooter .footerGroupSep{ display:inline; margin:0 6px; opacity:.85; }
-@media (max-width: 640px){
-  footer.siteFooter .footerRow{ display:block; line-height:1.9; }
-  footer.siteFooter .footerGroupSep{ display:none; }
-}
+a.demoLink .btnEmoji{font-size:18px; line-height:1;}
 
 button.smallBtn{padding:8px 10px;font-weight:900;border-radius:10px;}
 

@@ -392,7 +392,7 @@ button.multiline{
   width: var(--seatW);
   height: var(--seatH);
   border-radius:12px;
-  border:1px solid rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.24);
   background:rgba(255,255,255,.04);
   display:flex;
   align-items:center;
@@ -411,10 +411,11 @@ button.multiline{
 .seat.pair{ width: var(--seatW); }
 
 .seat.void{
-  background:transparent;
-  border:1px dashed rgba(255,255,255,.14);
+  /* 통로(여백) 표시를 조금 더 '연하게' 보이도록 */
+  background: rgba(255,255,255,.02);
+  border:1px dashed rgba(255,255,255,.18);
 }
-.seat.void .name{ color:rgba(156,163,175,.55); font-weight:800; }
+.seat.void .name{ color:rgba(156,163,175,.45); font-weight:800; }
 .seat.void .groupTag, .seat.void .genderTag, .seat.void .pinBadge{ display:none !important; }
 
 .seat .name{
@@ -559,7 +560,7 @@ button.multiline{
   width:40px;height:40px;
   border-radius:14px;
   display:flex;align-items:center;justify-content:center;
-  border:1px solid rgba(255,255,255,.18);
+  border:1px solid rgba(255,255,255,.24);
   background:rgba(17,24,39,.85);
   font-size:18px;
   font-weight:1000;
@@ -578,7 +579,7 @@ button.multiline{
   width:34px;height:28px;
   border-radius:12px;
   display:flex;align-items:center;justify-content:center;
-  border:1px solid rgba(255,255,255,.18);
+  border:1px solid rgba(255,255,255,.24);
   background:rgba(17,24,39,.88);
   font-size:12px;
   font-weight:1000;
@@ -591,9 +592,10 @@ button.multiline{
 .genderPad .gbtn.female{ border-color: rgba(239,68,68,.45); }
 .genderPad .gbtn.any{ border-color: rgba(229,231,235,.25); }
 
-.seat.genderM{ border-color: rgba(59,130,246,.75); }
-.seat.genderF{ border-color: rgba(239,68,68,.75); }
-.seat.genderA{ border-color: rgba(229,231,235,.55); }
+.seat.genderM{ border-color: rgba(59,130,246,.75); border-width:3px; }
+.seat.genderF{ border-color: rgba(239,68,68,.75); border-width:3px; }
+/* 무관(A): 기본 테두리 색은 유지하고, 남/여와 동일하게 두께만 강조 */
+.seat.genderA{ border-width:3px; }
 
 /* 표시 체크 가로 */
 #displayPanelHost .displayPanel{
@@ -688,7 +690,7 @@ select{
 .hidden{ display:none !important; }
 
 .previewBox{
-  border:1px solid rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.24);
   background: rgba(0,0,0,.18);
   border-radius:10px;
   padding:10px 12px;
@@ -790,7 +792,7 @@ select{
   position:fixed;left:50%;top:50%;
   transform:translate(-50%,-50%) scale(.98);
   background:rgba(0,0,0,.82);
-  border:1px solid rgba(255,255,255,.18);
+  border:1px solid rgba(255,255,255,.24);
   color:rgba(229,231,235,.98);
   padding:14px 18px;
   border-radius:16px;
@@ -898,7 +900,7 @@ select{
 }
 .groupMenu .gmSwatch{
   width:12px;height:12px;border-radius:4px;
-  border:1px solid rgba(255,255,255,.18);
+  border:1px solid rgba(255,255,255,.24);
   flex:0 0 auto;
 }
 
@@ -1160,7 +1162,7 @@ select{
   width:100%;
   padding:10px 12px;
   border-radius:12px;
-  border:1px solid rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.24);
   background: rgba(255,255,255,.05);
   color: rgba(255,255,255,.92);
   outline:none;
@@ -1442,4 +1444,11 @@ select{
   font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
   font-size:.92rem;
   color:rgba(255,255,255,.92);
+}
+
+
+/* 드롭다운(옵션) 글씨가 배경과 섞여 안 보이는 문제 방지 */
+select option{
+  color:#111827;
+  background:#f3f4f6;
 }

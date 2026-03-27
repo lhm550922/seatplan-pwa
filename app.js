@@ -1241,6 +1241,24 @@ for (let i = 0; i < orderedIds.length; i += size) {
 
   function clearPreview() { if (layoutPreviewEl) layoutPreviewEl.innerHTML = ""; }
 
+
+  function applyPreviewAutoScale(wrap){
+    if (!layoutPreviewEl || !wrap) return;
+    // 미리보기는 모달 폭을 넘기면 자동 축소
+    requestAnimationFrame(() => {
+      const avail = (layoutPreviewEl.clientWidth || 0) - 4;
+      const w = wrap.offsetWidth || 0;
+      if (!avail || !w) return;
+      if (w > avail) {
+        const s = Math.max(0.2, Math.min(1, avail / w));
+        wrap.style.transformOrigin = 'top left';
+        wrap.style.transform = `scale(${s})`;
+      } else {
+        wrap.style.transform = '';
+      }
+    });
+  }
+
   function drawMiniPreview(kind) {
     if (!layoutPreviewEl) return;
     clearPreview();
@@ -1283,6 +1301,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
       wrap.style.gridTemplateColumns = `repeat(${pCols}, 10px)`;
       for (let i = 0; i < pCols * pRows; i++) wrap.appendChild(cell(true, false, false));
       layoutPreviewEl.appendChild(wrap);
+      applyPreviewAutoScale(wrap);
       return;
     }
 
@@ -1305,6 +1324,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
         }
       }
       layoutPreviewEl.appendChild(wrap);
+      applyPreviewAutoScale(wrap);
       return;
     }
 
@@ -1347,6 +1367,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
       }
     }
     layoutPreviewEl.appendChild(wrap);
+    applyPreviewAutoScale(wrap);
   }
 
   function updateLayoutPreview() {
@@ -1706,12 +1727,6 @@ for (let i = 0; i < orderedIds.length; i += size) {
     if (seat.locked) div.classList.add("locked");
     if (seat.void) div.classList.add("void");
     if (vioSet.has(seat.id)) div.classList.add("violation");
-    // 금지쌍 그룹 테두리(같은 그룹은 같은 색)
-    if (seat.name && forbidColorMap && forbidColorMap.has(seat.name)) {
-      const info = forbidColorMap.get(seat.name);
-      div.classList.add("forbidMark");
-      div.style.setProperty("--forbidColor", info.color);
-    }
     div.classList.add(...genderClass(seat).split(" ").filter(Boolean));
 
       // 모바일(터치)에서는 드래그가 스크롤과 충돌하기 쉬워서 최소지원: 드래그 비활성화
@@ -1772,13 +1787,38 @@ for (let i = 0; i < orderedIds.length; i += size) {
       name.textContent = "통로";
       name.style.fontSize = `${Math.max(11, baseFont)}px`;
     } else if (seat.name) {
-      name.textContent = seat.name;
       const len = seat.name.length;
       let f = baseFont;
       if (len >= 6) f = baseFont - 1;
       if (len >= 9) f = baseFont - 2;
       if (len >= 12) f = baseFont - 3;
       name.style.fontSize = `${Math.max(11, f)}px`;
+
+      // 금지쌍 그룹 표시: 이름 옆 색 점(복수 가능)
+      if (forbidColorMap && forbidColorMap.has(seat.name)) {
+        const info = forbidColorMap.get(seat.name);
+        const colors = (info && info.colors && info.colors.length) ? info.colors : [];
+
+        name.classList.add('withDots');
+        const label = document.createElement('span');
+        label.className = 'nameLabel';
+        label.textContent = seat.name;
+
+        const dots = document.createElement('span');
+        dots.className = 'forbidDots';
+        for (const c of colors) {
+          const d = document.createElement('span');
+          d.className = 'forbidDot';
+          d.style.setProperty('--dotColor', c);
+          dots.appendChild(d);
+        }
+
+        name.appendChild(label);
+        name.appendChild(dots);
+      } else {
+        name.textContent = seat.name;
+      }
+
     } else {
       name.textContent = "빈자리";
       name.classList.add("empty");
@@ -2012,6 +2052,7 @@ function readForbiddenLineGroups(text){
 
 const FORBID_COLORS = ["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#3b82f6","#a855f7","#ec4899","#0ea5e9","#84cc16"];
 function buildForbiddenGroupColorMap(){
+  // 이름 -> 포함된 금지쌍 그룹 색상들(복수)
   const map = new Map();
   const text = forbiddenInput ? forbiddenInput.value : "";
   const groups = readForbiddenLineGroups(text);
@@ -2019,7 +2060,13 @@ function buildForbiddenGroupColorMap(){
     const color = FORBID_COLORS[idx % FORBID_COLORS.length];
     for (const n of names) {
       if (!n) continue;
-      map.set(n, { idx, color });
+      const prev = map.get(n);
+      if (!prev) {
+        map.set(n, { idxs: [idx], colors: [color] });
+      } else {
+        if (!prev.idxs.includes(idx)) prev.idxs.push(idx);
+        if (!prev.colors.includes(color)) prev.colors.push(color);
+      }
     }
   });
   return map;
@@ -3600,13 +3647,21 @@ let _savingStudentsNow = false;
     const totalW = pad * 2 + gridW;
     const totalH = pad * 2 + titleH + boardH + 12 + gridH;
 
-    canvas.width = Math.max(900, Math.ceil(totalW));
-    canvas.height = Math.max(650, Math.ceil(totalH));
+    // 내보내기(이미지/인쇄) 자동 맞춤: 너무 넓어지면 축소해서 한 장에 들어오게
+    const maxW = 1200;
+    const maxH = 1700;
+    const scale = Math.min(1, maxW / totalW, maxH / totalH);
+
+    canvas.width = Math.max(900, Math.ceil(totalW * scale));
+    canvas.height = Math.max(650, Math.ceil(totalH * scale));
 
     const ctx = canvas.getContext("2d");
 
+    // scale 적용 후에도 좌표 계산은 원래(totalW/totalH) 기준으로 그립니다.
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+
     ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, totalW, totalH);
 
     ctx.fillStyle = "#111827";
     ctx.font = "900 22px system-ui";
@@ -3655,11 +3710,6 @@ let _savingStudentsNow = false;
           ctx.strokeStyle = "rgba(17,24,39,0.28)";
           ctx.lineWidth = 2;
           dashedRoundRect(ctx, x, y, seatW, seatH, 14);
-          ctx.fillStyle = "rgba(17,24,39,0.55)";
-          ctx.font = "800 16px system-ui";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText("통로", x + seatW / 2, y + seatH / 2);
           continue;
         }
 
@@ -3700,12 +3750,13 @@ let _savingStudentsNow = false;
           ctx.fillText("📌", x + 22, y + 18);
         }
 
-        const nm = seat.name ? seat.name : "빈자리";
-        ctx.fillStyle = seat.name ? "#e5e7eb" : "rgba(156,163,175,0.85)";
-        ctx.font = seat.name ? "900 18px system-ui" : "800 16px system-ui";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(nm, x + seatW / 2, y + seatH / 2);
+        if (seat.name) {
+          ctx.fillStyle = "#e5e7eb";
+          ctx.font = "900 18px system-ui";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(seat.name, x + seatW / 2, y + seatH / 2);
+        }
 
         // 모둠 표시(텍스트만)
         if (showGroups && showGroups.checked) {

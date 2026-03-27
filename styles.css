@@ -330,6 +330,7 @@ button.multiline{
   -webkit-overflow-scrolling: touch;
   /* PC에서 배치도 위에 마우스가 있어도 페이지 스크롤이 이어지도록 */
   overscroll-behavior: auto;
+  touch-action: pan-x pan-y;
   display:flex;
   flex-direction:column;
   gap:8px;

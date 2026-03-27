@@ -27,6 +27,7 @@
   const autoFillBtn = $("autoFillBtn");
   const clearBtn = $("clearBtn");
   const undoBtn = $("undoBtn");
+  const redoBtn = $("redoBtn");
   const downloadPngBtn = $("downloadPngBtn");
   const printBtn = $("printBtn");
 
@@ -201,16 +202,27 @@
   // - PC/모바일 공통 '이전' 버튼
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
+  let redoStack = [];
   const UNDO_MAX = 30;
+
+  function updateHistoryButtons(){
+    try{
+      if (undoBtn) undoBtn.disabled = (undoStack.length === 0);
+      if (redoBtn) redoBtn.disabled = (redoStack.length === 0);
+      if (clearBtn) clearBtn.disabled = (undoStack.length === 0 && redoStack.length === 0);
+    }catch(e){}
+  }
 
   function pushUndo(reason) {
     try {
+      // Any new action invalidates redo history
+      redoStack = [];
       const snap = currentSnapshot();
       // deep copy via JSON to detach references
       const raw = JSON.stringify(snap);
       undoStack.push(raw);
       if (undoStack.length > UNDO_MAX) undoStack.shift();
-      if (undoBtn) undoBtn.disabled = (undoStack.length === 0);
+      updateHistoryButtons();
     } catch (e) {
       // ignore
     }
@@ -218,6 +230,13 @@
 
   function doUndo() {
     if (!undoStack.length) { toast("되돌릴 내용이 없어요."); return; }
+    // Save current state for redo
+    try {
+      const cur = JSON.stringify(currentSnapshot());
+      redoStack.push(cur);
+      if (redoStack.length > UNDO_MAX) redoStack.shift();
+    } catch (e) {}
+
     let raw = undoStack.pop();
     try {
       const snap = JSON.parse(raw);
@@ -232,7 +251,33 @@
     } catch (e) {
       toast("되돌리기에 실패했어요.");
     }
-    if (undoBtn) undoBtn.disabled = (undoStack.length === 0);
+    updateHistoryButtons();
+  }
+
+  function doRedo() {
+    if (!redoStack.length) { toast("다시 실행할 내용이 없어요."); return; }
+    // Save current state for undo
+    try {
+      const cur = JSON.stringify(currentSnapshot());
+      undoStack.push(cur);
+      if (undoStack.length > UNDO_MAX) undoStack.shift();
+    } catch (e) {}
+
+    let raw = redoStack.pop();
+    try {
+      const snap = JSON.parse(raw);
+      applySnapshot(snap);
+      uiMode = "none";
+      selectedSeatId = null;
+      moveFromSeatId = null;
+      closeGroupMenu();
+      computeViolations();
+      renderGrid();
+      toast("한 단계 앞으로 되돌렸어요.");
+    } catch (e) {
+      toast("다시 실행에 실패했어요.");
+    }
+    updateHistoryButtons();
   }
 
 function centerToast(msg) {
@@ -3206,15 +3251,17 @@ function renderForbiddenGroupsFromTextarea() {
   });
 
   if (autoFillBtn) autoFillBtn.addEventListener("click", () => { pushUndo("autoFill"); autoFill(); });
-  if (clearBtn) clearBtn.addEventListener("click", () => {
+  if (clearBtn) { clearBtn.disabled = true; clearBtn.addEventListener("click", () => {
     const ok = window.confirm("정말 초기화할까요?\n배치도/학생/옵션이 초기화됩니다.");
     if (!ok) return;
     pushUndo("clearAll");
     clearAll();
     toast("초기화되었습니다.");
-  });
+  }); }
   if (restoreVoidsBtn) restoreVoidsBtn.addEventListener("click", () => { pushUndo("restoreVoids"); restoreVoids(); });
   if (undoBtn) { undoBtn.disabled = true; undoBtn.addEventListener("click", doUndo); }
+  if (redoBtn) { redoBtn.disabled = true; redoBtn.addEventListener("click", doRedo); }
+  updateHistoryButtons();
 
   if (showSeatNo) showSeatNo.addEventListener("change", renderGrid);
   if (showGroups) showGroups.addEventListener("change", () => { closeGroupMenu(); renderGrid(); });

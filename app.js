@@ -3751,8 +3751,9 @@ let _savingStudentsNow = false;
           ctx.fillText("📌", x + 22, y + 18);
         }
 
+        // Export (image/print): render names in solid black for readability
         if (seat.name) {
-          ctx.fillStyle = "#e5e7eb";
+          ctx.fillStyle = "#000000";
           ctx.font = "900 18px system-ui";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";

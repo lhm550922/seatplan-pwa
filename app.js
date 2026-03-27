@@ -3326,6 +3326,21 @@ let _savingStudentsNow = false;
         normalizeStudentsInput();
       }
 
+      // ✅ 영구 저장: "학생 입력 > 저장"을 눌렀을 때의 명단을 로컬에 저장해
+      //    업데이트/파일 교체/새로고침 후에도 유지되게 한다.
+      try {
+        if (studentsInput) {
+          const text = (studentsInput.value || "");
+          // 빈 값도 저장(사용자가 일부러 비우고 저장한 경우를 반영)
+          localStorage.setItem(
+            LS_STUDENTS_KEY,
+            JSON.stringify({ text, savedAt: Date.now(), schema: 1 })
+          );
+        }
+      } catch (e) {
+        // ignore (storage blocked)
+      }
+
       // Reliable, non-overlay feedback (do NOT auto-close; user closes manually)
       if (btn) {
         const prevText = btn.textContent;

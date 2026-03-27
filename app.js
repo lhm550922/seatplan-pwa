@@ -59,47 +59,25 @@
   const incomingWarnText = $("incomingWarnText");
 
   const studentsInput = $("studentsInput");
-  // ===== 학생 명단 로컬 저장(업데이트/새로고침 대비) =====
-  // - 사용자가 [저장]을 눌렀을 때만 로컬에 저장합니다.
-  // - 앱 파일이 업데이트되어도(localStorage는 유지) 다음 실행 시 자동 복원됩니다.
-  const LS_KEY_STUDENTS = "seatplan_students_text_v1";
-
-  function loadStudentsTextFromLocal(){
-    try{
-      const raw = localStorage.getItem(LS_KEY_STUDENTS);
-      if(!raw) return "";
-      // 구버전 문자열 저장도 허용
-      if(raw.startsWith("{")){
-        const obj = JSON.parse(raw);
-        return (obj && typeof obj.text === "string") ? obj.text : "";
-      }
-      return String(raw || "");
-    }catch{
-      return "";
-    }
-  }
-
-  function saveStudentsTextToLocal(text){
-    try{
-      const payload = { v: 1, savedAt: Date.now(), text: String(text || "") };
-      localStorage.setItem(LS_KEY_STUDENTS, JSON.stringify(payload));
-      return true;
-    }catch{
-      return false;
-    }
-  }
-
-  // 앱 로드시 학생명단을 미리 복원해 둡니다(자동배치 등 다른 기능에서도 바로 사용 가능).
-  // 단, 이미 입력값이 있으면 덮어쓰지 않습니다.
-  try{
-    if(studentsInput && !(studentsInput.value || "").trim()){
-      const restored = loadStudentsTextFromLocal();
-      if(restored.trim()){
-        studentsInput.value = restored;
-      }
-    }
-  }catch{}
   const applyStudentsBtn = $("applyStudentsBtn");
+
+  // 학생 명단 영구 보존(v0.92 patch): "학생 입력 > 저장"을 누른 명단을 로컬에 저장해 업데이트/새로고침 후에도 복원
+  const LS_STUDENTS_KEY = "seatplan_students_v1";
+  function loadPersistedStudentsIfEmpty(){
+    try{
+      if(!studentsInput) return;
+      if((studentsInput.value||"").trim()) return;
+      const raw = localStorage.getItem(LS_STUDENTS_KEY);
+      if(!raw) return;
+      const data = JSON.parse(raw);
+      if(data && typeof data.text === "string" && data.text.trim()){
+        studentsInput.value = data.text;
+      }
+    }catch(e){
+      // ignore (private mode / storage blocked)
+    }
+  }
+  loadPersistedStudentsIfEmpty();
   // 학생 입력(표 UI)
   const studentsTable = $("studentsTable");
   const studentsTbody = $("studentsTbody");
@@ -1094,14 +1072,6 @@ function studentsSetVisibility(){
 
   function initStudentsModalUI(){
     if(!studentsInput || !studentsTbody) return;
-
-    // 저장 버튼으로 저장한 학생명단이 있으면(업데이트/새로고침 후) 자동 복원
-    if(!((studentsInput.value || "").trim())){
-      const restored = loadStudentsTextFromLocal();
-      if(restored.trim()){
-        studentsInput.value = restored;
-      }
-    }
 
     if((studentsInput.value || "").trim()){
       studentsTextToTable();
@@ -2868,9 +2838,31 @@ function renderForbiddenGroupsFromTextarea() {
       if (studentsInput && studentsTbody) {
         studentsInput.value = tableToStudentsText();
         normalizeStudentsInput();
-        // 로컬에 영구 저장(업데이트/새로고침 후에도 유지)
-        saveStudentsTextToLocal(studentsInput.value);
       }
+
+      // ✅ 영구 저장: "저장"을 누른 학생 명단을 로컬에 저장해(업데이트/새로고침 후에도) 유지
+      // - 자리 배치/그리드 로직과 완전히 분리(학생 텍스트만 저장)
+      try {
+        if (studentsInput) {
+          const text = (studentsInput.value || "").trim();
+          if (text) {
+            localStorage.setItem(
+              LS_STUDENTS_KEY,
+              JSON.stringify({ text, savedAt: Date.now(), schema: 1 })
+            );
+          }
+        }
+      } catch (e) {
+        // ignore (storage blocked)
+      }
+
+
+      // 로컬 저장(업데이트/새로고침 대비): 저장 버튼을 눌렀을 때만 저장
+      try{
+        if(studentsInput){
+          localStorage.setItem(LS_STUDENTS_KEY, JSON.stringify({ text: studentsInput.value || "", savedAt: Date.now() }));
+        }
+      }catch(e){ /* ignore */ }
     } catch(e) {}
 
     const students = parseStudents(studentsInput ? studentsInput.value : "");
@@ -3262,7 +3254,7 @@ function renderForbiddenGroupsFromTextarea() {
     );
   }
 
-  if (openStudentsBtn) openStudentsBtn.addEventListener("click", () => { openModal(studentsModal); initStudentsModalUI(); });
+  if (openStudentsBtn) openStudentsBtn.addEventListener("click", () => { loadPersistedStudentsIfEmpty(); openModal(studentsModal); initStudentsModalUI(); });
 
   // 학생 입력 저장: 클릭 이벤트가 누락되거나 초기화 중 에러가 나도 동작하도록(직접 바인딩 + 위임 바인딩)
   
@@ -3285,8 +3277,6 @@ let _savingStudentsNow = false;
       if (studentsInput && studentsTbody) {
         studentsInput.value = tableToStudentsText();
         normalizeStudentsInput();
-        // 로컬에 영구 저장(업데이트/새로고침 후에도 유지)
-        saveStudentsTextToLocal(studentsInput.value);
       }
 
       // Reliable, non-overlay feedback (do NOT auto-close; user closes manually)

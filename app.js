@@ -1409,7 +1409,8 @@ for (let i = 0; i < orderedIds.length; i += size) {
     }
 
     if (kind === "single") {
-      cols = clamp(Number(params.singleCols), 1, 8);
+      // 1인 책상 배열: 열 최대 12까지 지원(가로 스크롤로 대응)
+      cols = clamp(Number(params.singleCols), 1, 12);
       rows = clamp(Number(params.singleRows), 1, 8);
       if (seatTypeSel) seatTypeSel.value = "single";
       buildSeatModel();
@@ -3324,21 +3325,6 @@ let _savingStudentsNow = false;
       if (studentsInput && studentsTbody) {
         studentsInput.value = tableToStudentsText();
         normalizeStudentsInput();
-      }
-
-      // ✅ 영구 저장: "학생 입력 > 저장"을 눌렀을 때의 명단을 로컬에 저장해
-      //    업데이트/파일 교체/새로고침 후에도 유지되게 한다.
-      try {
-        if (studentsInput) {
-          const text = (studentsInput.value || "");
-          // 빈 값도 저장(사용자가 일부러 비우고 저장한 경우를 반영)
-          localStorage.setItem(
-            LS_STUDENTS_KEY,
-            JSON.stringify({ text, savedAt: Date.now(), schema: 1 })
-          );
-        }
-      } catch (e) {
-        // ignore (storage blocked)
       }
 
       // Reliable, non-overlay feedback (do NOT auto-close; user closes manually)

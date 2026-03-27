@@ -427,6 +427,32 @@ button.multiline{
   line-height:1.1;
   pointer-events:none;
 }
+
+/* 금지쌍 그룹 점 표시(이름 옆) */
+.seat .name.withDots{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.seat .name .nameLabel{ display:inline-block; }
+.seat .name .forbidDots{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+}
+.seat .name .forbidDot{
+  width:7px;
+  height:7px;
+  border-radius:999px;
+  background: var(--dotColor);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.18);
+}
+/* (옵션) 금지쌍 그룹 힌트 테두리 */
+.seat.forbidMark{
+  box-shadow: 0 0 0 2px var(--forbidColor) inset;
+}
 .seat .empty{ color:rgba(156,163,175,.75); font-weight:800; }
 
 .seat .no{

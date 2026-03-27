@@ -1,4 +1,4 @@
-/* SeatPlan App (v0.92) */
+/* SeatPlan App (v0.91) */
 /* SeatPlan PWA - app.js v0.83
    변경(요청 반영):
    1) 고정 좌석(📌): '고정 좌석' 버튼 클릭 시 각 좌석 좌상단에 작은 핀 아이콘 표시(삭제 아이콘과 동일 크기).
@@ -60,6 +60,24 @@
 
   const studentsInput = $("studentsInput");
   const applyStudentsBtn = $("applyStudentsBtn");
+
+  // 학생 명단 영구 보존(v0.92 patch): "학생 입력 > 저장"을 누른 명단을 로컬에 저장해 업데이트/새로고침 후에도 복원
+  const LS_STUDENTS_KEY = "seatplan_students_v1";
+  function loadPersistedStudentsIfEmpty(){
+    try{
+      if(!studentsInput) return;
+      if((studentsInput.value||"").trim()) return;
+      const raw = localStorage.getItem(LS_STUDENTS_KEY);
+      if(!raw) return;
+      const data = JSON.parse(raw);
+      if(data && typeof data.text === "string" && data.text.trim()){
+        studentsInput.value = data.text;
+      }
+    }catch(e){
+      // ignore (private mode / storage blocked)
+    }
+  }
+  loadPersistedStudentsIfEmpty();
   // 학생 입력(표 UI)
   const studentsTable = $("studentsTable");
   const studentsTbody = $("studentsTbody");
@@ -1158,75 +1176,46 @@ function studentsSetVisibility(){
   }
 
   function applyAutoGroups() {
-  // ✅ 자동 모둠 기본 세팅(모둠 번호 표시 기준)
-  // - 1인(단독) 배열: "열" 단위로 같은 모둠
-  // - 2인(짝) 배열: 같은 줄의 짝꿍 + 앞/뒤 짝꿍까지 4명씩 같은 모둠
-  // - 모둠 배열: 레이아웃 자체 groupId 유지
-  //
-  // 수동 모둠 변경 이후에는 자동 재계산으로 다른 좌석이 변하지 않도록 동결
-  if (autoGroupFrozen) return;
+    // layoutKind === group인 경우 이미 배치에서 groupId가 지정됨
+    // 여기서는 자동 그룹핑 옵션이 있으면 groupId를 채움.
+    if (!groupMode) return;
+    const mode = groupMode.value;
+    if (mode === "none") return;
 
-  if (layoutKind === "group") return;
+    // 수동 모둠 변경 이후에는 자동 그룹핑으로 다른 좌석이 움직이지 않도록 함
+    if (autoGroupFrozen) return;
 
-  // showGroups가 꺼져 있어도(또는 옵션 때문에) groupId가 필요할 수 있어 자동으로 채움
-  // ✅ void 제외 + 수동 지정된 좌석은 자동 그룹핑으로 덮어쓰지 않음
-  const isActive = (id) => {
-    const s = getSeat(id);
-    return !!(s && !s.void && !s.groupManual);
-  };
+    const size = Number(mode);
+    if (!size) return;
 
-  // 1) 단독: 열 단위(컬럼별) 같은 모둠
-  if (layoutKind === "single") {
-    let gidCounter = 1;
-    for (let c = 0; c < cols; c++) {
-      const gid = clamp(gidCounter, 1, 8);
-      for (let r = 0; r < rows; r++) {
-        const id = r * cols + c;
-        if (!isActive(id)) continue;
-        const s = getSeat(id);
-        if (s) s.groupId = gid;
-      }
-      gidCounter = gidCounter % 8 + 1;
-    }
-    return;
-  }
+    // ✅ void 제외 + 수동 지정된 좌석은 자동 그룹핑으로 덮어쓰지 않음
+// v0.82: 세로줄(열 우선) 기준으로 모둠 자동 지정
+// - 좌석을 (열 -> 행) 순서로 훑어서, 같은 열의 위/아래가 먼저 같은 모둠이 되도록 한다.
+const activeSet = new Set(
+  seats
+    .filter((s) => !s.void && !s.groupManual)
+    .map((s) => s.id)
+);
 
-  // 2) 짝: (같은 줄의 2명) + (앞/뒤 줄의 2명) => 4명씩 같은 모둠
-  if (layoutKind === "pair") {
-    // ✅ 짝 배열은 좌석(2칸) 사이에 통로(1칸) 컬럼이 들어갈 수 있음
-    // (0,1)[통로](3,4)[통로](6,7)... 형태
-    // 따라서 cols 기반으로 계산하지 말고, 설정값(pairCols)로 계산
-    // ✅ 통로 컬럼 포함 시 최대 4짝(=11열)까지 안전
-    const pc = clamp(Number(layoutParams.pairCols), 1, 4);
-    let gidCounter = 1;
-
-    for (let g = 0; g < pc; g++) {
-      for (let r = 0; r < rows; r += 2) {
-        const gid = clamp(gidCounter, 1, 8);
-
-        const ids = [];
-        // row r
-        const baseC = g * 3; // 2좌석 + 1통로
-        ids.push(r * cols + baseC);
-        ids.push(r * cols + (baseC + 1));
-        // row r+1 (if exists)
-        if (r + 1 < rows) {
-          ids.push((r + 1) * cols + baseC);
-          ids.push((r + 1) * cols + (baseC + 1));
-        }
-
-        for (const id of ids) {
-          if (!isActive(id)) continue;
-          const s = getSeat(id);
-          if (s) s.groupId = gid;
-        }
-
-        gidCounter = gidCounter % 8 + 1;
-      }
-    }
-    return;
+const orderedIds = [];
+for (let c = 0; c < cols; c++) {
+  for (let r = 0; r < rows; r++) {
+    const id = r * cols + c;
+    if (activeSet.has(id)) orderedIds.push(id);
   }
 }
+
+let gidCounter = 1;
+for (let i = 0; i < orderedIds.length; i += size) {
+  const gid = clamp(gidCounter, 1, 8);
+  const chunk = orderedIds.slice(i, i + size);
+  for (const id of chunk) {
+    const s = getSeat(id);
+    if (s) s.groupId = gid;
+  }
+  gidCounter = gidCounter % 8 + 1;
+}
+  }
 
   function setAccordionVisibility(kind) {
     if (accSingle) accSingle.classList.toggle("hidden", kind !== "single");
@@ -1298,18 +1287,21 @@ function studentsSetVisibility(){
     }
 
     if (kind === "pair") {
-      const pc = clamp(Number(pairColsSel.value), 1, 4);
+      const pc = Number(pairColsSel.value);
       const pRows = Number(rowsPairSel.value);
 
-      // ✅ 짝 사이 통로(여백) 컬럼을 실제 셀(aisle)로 미리보기에도 표시
-      // (0,1)[통로](3,4)[통로]...
-      const totalCols = pc * 2 + (pc - 1);
-      wrap.style.gridTemplateColumns = `repeat(${totalCols}, 10px)`;
+      const tracks = [];
+      for (let g = 0; g < pc; g++) {
+        tracks.push("10px", "10px");
+        if (g !== pc - 1) tracks.push("6px");
+      }
+      wrap.style.gridTemplateColumns = tracks.join(" ");
 
       for (let r = 0; r < pRows; r++) {
-        for (let c = 0; c < totalCols; c++) {
-          const isAisle = (c % 3 === 2); // 2좌석 후 통로
-          wrap.appendChild(cell(!isAisle, isAisle, false));
+        for (let g = 0; g < pc; g++) {
+          wrap.appendChild(cell(true, false, false));
+          wrap.appendChild(cell(true, false, false));
+          if (g !== pc - 1) wrap.appendChild(cell(false, false, true));
         }
       }
       layoutPreviewEl.appendChild(wrap);
@@ -1403,32 +1395,11 @@ function studentsSetVisibility(){
     }
 
     if (kind === "pair") {
-      // ✅ 통로 컬럼 포함 시 최대 4짝(=11열)까지 안전
       const pc = clamp(Number(params.pairCols), 1, 4);
       rows = clamp(Number(params.pairRows), 1, 8);
-      // ✅ 짝 배열: 짝(2칸) 사이에 통로(1칸) 컬럼을 기본으로 넣기
-      // 예) pc=2 => 2*2 + 1 = 5 (0,1,2,3,4) / 2는 통로
-      //     pc=3 => 6 + 2 = 8
-      cols = pc * 2 + (pc - 1);
+      cols = pc * 2;
       if (seatTypeSel) seatTypeSel.value = "single";
       buildSeatModel();
-
-      // 통로 컬럼을 void로 마킹 (통로↔책상 편집 가능)
-      for (let g = 1; g < pc; g++) {
-        const aisleCol = g * 3 - 1;
-        for (let r = 0; r < rows; r++) {
-          const id = r * cols + aisleCol;
-          const s = getSeat(id);
-          if (s) {
-            s.void = true;
-            s.groupId = 1;
-            s.groupManual = false;
-            s.name = null;
-            s.locked = false;
-            s.seatGender = "A";
-          }
-        }
-      }
     }
 
     if (kind === "group") {
@@ -1640,7 +1611,7 @@ function studentsSetVisibility(){
     const seatH = parseInt(getComputedStyle(gridEl).getPropertyValue("--seatH")) || 70;
     const gap = parseInt(getComputedStyle(gridEl).getPropertyValue("--gap")) || 10;
 
-    const isPair = false; // pair도 일반 그리드처럼 렌더(통로/여백을 편집 가능하게)
+    const isPair = layoutKind === "pair";
     if (isPair) {
       const extra = getPairGapExtraScreen();
       applyGridTemplateForPair(seatW, gap, extra);
@@ -1875,7 +1846,7 @@ function studentsSetVisibility(){
       if (aId == null || bId == null) continue;
 
       const neigh = new Set(neighborIds(aId));
-      const sameGroupOn = !!(includeSameGroup && includeSameGroup.checked && showGroups && showGroups.checked);
+      const sameGroupOn = !!(includeSameGroup && includeSameGroup.checked && groupMode && groupMode.value !== "none");
       const aSeat = getSeat(aId);
       const bSeat = getSeat(bId);
       const sameGroup = sameGroupOn && aSeat && bSeat && !aSeat.void && !bSeat.void && (aSeat.groupId != null) && (bSeat.groupId != null) && (aSeat.groupId === bSeat.groupId);
@@ -1933,7 +1904,8 @@ function studentsSetVisibility(){
     if (includeDiagonal) includeDiagonal.disabled = !forbidOn;
     // 같은 모둠도 인접으로 판단(모둠 설정 시)
     if (includeSameGroup) {
-includeSameGroup.disabled = !forbidOn;
+      const groupOn = (groupMode && groupMode.value !== "none");
+      includeSameGroup.disabled = !forbidOn;
     }
 
     // 금지쌍 그룹 UI 비활성 처리
@@ -1946,7 +1918,9 @@ includeSameGroup.disabled = !forbidOn;
     if (rotateBack) rotateBack.disabled = !rotOn;
 
     const balanceEl = document.getElementById("balanceLevels");
+    const groupModeEl = document.getElementById("groupMode");
     const balanceOn = !!(balanceEl && balanceEl.checked);
+    if (groupModeEl) groupModeEl.disabled = !balanceOn;
     if (optionsModal) {
       optionsModal.classList.toggle("balanceDisabled", !balanceOn);
     }
@@ -2865,6 +2839,14 @@ function renderForbiddenGroupsFromTextarea() {
         studentsInput.value = tableToStudentsText();
         normalizeStudentsInput();
       }
+
+
+      // 로컬 저장(업데이트/새로고침 대비): 저장 버튼을 눌렀을 때만 저장
+      try{
+        if(studentsInput){
+          localStorage.setItem(LS_STUDENTS_KEY, JSON.stringify({ text: studentsInput.value || "", savedAt: Date.now() }));
+        }
+      }catch(e){ /* ignore */ }
     } catch(e) {}
 
     const students = parseStudents(studentsInput ? studentsInput.value : "");
@@ -2900,10 +2882,8 @@ function renderForbiddenGroupsFromTextarea() {
       if (!seat || seat.void) return false;
       const req = seat.seatGender ?? "A";
       if (req === "A") return true;
-
-      // ✅ 성별 지정 좌석은 '해당 성별(M/F)'만 허용 (미지정(A) 학생도 허용하지 않음)
       const g = nameToGender.get(name) || "A";
-      return g === req;
+      return g === req || g === "A";
     };
 
     // --- (금지쌍 만족) 탐색 유틸 ---
@@ -2927,7 +2907,7 @@ function renderForbiddenGroupsFromTextarea() {
         const ns = neighborSet.get(aId);
         if (ns && ns.has(bId)) cost += 1;
         // 같은 모둠도 인접으로 판단(모둠 설정 시)
-        const sameGroupOn = !!(includeSameGroup && includeSameGroup.checked && showGroups && showGroups.checked);
+        const sameGroupOn = !!(includeSameGroup && includeSameGroup.checked && groupMode && groupMode.value !== "none");
         if (sameGroupOn) {
           const aSeat = getSeat(aId);
           const bSeat = getSeat(bId);
@@ -3022,7 +3002,7 @@ function renderForbiddenGroupsFromTextarea() {
               break;
             }
           }
-          if (pickIndex === -1) { seatToName[id] = null; continue; }
+          if (pickIndex === -1) pickIndex = 0;
         }
 
         const picked = remaining.splice(pickIndex, 1)[0];
@@ -3052,17 +3032,6 @@ function renderForbiddenGroupsFromTextarea() {
         const tmp = cur[a];
         cur[a] = cur[b];
         cur[b] = tmp;
-
-        // ✅ 성별 지정 좌석 조건은 절대 깨지 않도록(하드 제약)
-        const na = cur[a];
-        const nb = cur[b];
-        if ((na && !allowedForSeat(na, a)) || (nb && !allowedForSeat(nb, b))) {
-          // revert
-          const t2 = cur[a];
-          cur[a] = cur[b];
-          cur[b] = t2;
-          continue;
-        }
 
         const newCost = totalCost(cur);
         const accept = newCost <= curCost || Math.random() < 0.02;
@@ -3128,23 +3097,7 @@ function renderForbiddenGroupsFromTextarea() {
     renderGrid();
     /* rotation 기록은 이제 '배치도 저장' 시에만 반영됩니다. */
 
-        // ✅ 성별 지정 좌석은 절대 섞지 않기: 맞는 학생이 없으면 빈자리로 둠
-    let emptyGenderSeats = 0;
-    try {
-      for (const id of activeSeatIds) {
-        const seat = getSeat(id);
-        if (!seat || seat.void) continue;
-        const req = seat.seatGender ?? "A";
-        if (req === "A") continue;
-        const nm = bestGlobal[id];
-        if (!nm) emptyGenderSeats++;
-      }
-    } catch(e) {}
-    if (emptyGenderSeats > 0) {
-      toast(`성별 지정 좌석 ${emptyGenderSeats}자리는 맞는 학생이 없어 빈자리로 남겼어요.`);
-    }
-
-if (forbiddenPairs.length > 0 && bestGlobalForbidden > 0) {
+    if (forbiddenPairs.length > 0 && bestGlobalForbidden > 0) {
       toast(`금지 조건을 모두 만족시키기 어려워요(남은 위반 ${bestGlobalForbidden}건).`);
     }
     if (bestGlobalGender > 0) {
@@ -3212,6 +3165,22 @@ if (forbiddenPairs.length > 0 && bestGlobalForbidden > 0) {
   if (showSeatNo) showSeatNo.addEventListener("change", renderGrid);
   if (showGroups) showGroups.addEventListener("change", () => { closeGroupMenu(); renderGrid(); });
   if (showGender) showGender.addEventListener("change", renderGrid);
+
+  if (groupMode) groupMode.addEventListener("change", () => {
+    // manual size input toggle
+    try {
+      if (groupModeManual) groupModeManual.style.display = (groupMode.value === "manual") ? "inline-block" : "none";
+    } catch {}
+    // 사용자가 드롭다운으로 모둠 크기를 다시 선택하면 자동 그룹핑을 다시 허용
+    autoGroupFrozen = false;
+    // ✅ 자동 모둠표기 모드를 바꾸면(=재계산 의도) 기존 수동 지정은 초기화
+    if (groupMode.value !== "none") {
+      seats.forEach((s) => { if (s && !s.void) s.groupManual = false; });
+    }
+    syncOptionEnables();
+    renderGrid();
+    log("모둠 크기 변경");
+  });
   if (balanceLevels) balanceLevels.addEventListener("change", () => {
     // 모둠 인원(select) 활성/비활성 상태를 체크박스와 항상 동기화
     syncOptionEnables();
@@ -3269,7 +3238,7 @@ if (forbiddenPairs.length > 0 && bestGlobalForbidden > 0) {
     );
   }
 
-  if (openStudentsBtn) openStudentsBtn.addEventListener("click", () => { openModal(studentsModal); initStudentsModalUI(); });
+  if (openStudentsBtn) openStudentsBtn.addEventListener("click", () => { loadPersistedStudentsIfEmpty(); openModal(studentsModal); initStudentsModalUI(); });
 
   // 학생 입력 저장: 클릭 이벤트가 누락되거나 초기화 중 에러가 나도 동작하도록(직접 바인딩 + 위임 바인딩)
   
@@ -3398,7 +3367,7 @@ let _savingStudentsNow = false;
 
   if (openGuideBtn) openGuideBtn.addEventListener("click", () => { window.location.href = "./guide.html"; });
 
-  if (demoBtn) demoBtn.addEventListener("click", (e) => { try{ e.preventDefault(); }catch{}
+  if (demoBtn) demoBtn.addEventListener("click", () => {
     try {
       pushUndo("demo");
     } catch {}
@@ -3605,10 +3574,9 @@ let _savingStudentsNow = false;
     const boardH = 80;
     const titleH = 30;
 
-    // ✅ 짝 배열은 통로 컬럼이 실제로 그리드에 포함되므로,
-    // 추가 간격(extra gap)을 따로 적용하지 않음
-    const isPair = false;
-    const extraTotal = 0;
+    const isPair = layoutKind === "pair";
+    const pc = isPair ? Math.max(1, Math.floor(cols / 2)) : 0;
+    const extraTotal = isPair ? (pc - 1) * pairGapExtraExport : 0;
 
     const gridW = cols * seatW + (cols - 1) * gap + extraTotal;
     const gridH = rows * seatH + (rows - 1) * gap;
@@ -3661,7 +3629,7 @@ let _savingStudentsNow = false;
         const seat = getSeat(seatId);
         if (!seat) continue;
 
-        const extraX = 0;
+        const extraX = isPair ? Math.floor(c / 2) * pairGapExtraExport : 0;
 
         const x = pad + c * (seatW + gap) + extraX;
         const y = gridY + displayR * (seatH + gap);
@@ -3675,6 +3643,7 @@ let _savingStudentsNow = false;
           ctx.font = "800 16px system-ui";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
+          ctx.fillText("통로", x + seatW / 2, y + seatH / 2);
           continue;
         }
 
@@ -3715,7 +3684,7 @@ let _savingStudentsNow = false;
           ctx.fillText("📌", x + 22, y + 18);
         }
 
-        const nm = seat.name ? seat.name : "";
+        const nm = seat.name ? seat.name : "빈자리";
         ctx.fillStyle = seat.name ? "#e5e7eb" : "rgba(156,163,175,0.85)";
         ctx.font = seat.name ? "900 18px system-ui" : "800 16px system-ui";
         ctx.textAlign = "center";

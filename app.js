@@ -2884,8 +2884,15 @@ function renderForbiddenGroupsFromTextarea() {
     // 학생 입력 표(UI)가 존재하면, 저장 버튼을 누르지 않았더라도 최신 입력값을 반영
     try {
       if (studentsInput && studentsTbody) {
-        studentsInput.value = tableToStudentsText();
-        normalizeStudentsInput();
+        
+
+      // ✅ 영구 저장(저장 버튼 기반): 업데이트/새로고침/파일 교체 후에도 학생 명단 유지
+      try {
+        if (studentsInput) {
+          const text = (studentsInput.value || "");
+          localStorage.setItem(LS_STUDENTS_KEY, JSON.stringify({ text, savedAt: Date.now(), schema: 1 }));
+        }
+      } catch (e) { /* ignore */ }
       }
 
       // ✅ 영구 저장: "저장"을 누른 학생 명단을 로컬에 저장해(업데이트/새로고침 후에도) 유지
@@ -3219,6 +3226,7 @@ function renderForbiddenGroupsFromTextarea() {
   if (clearBtn) clearBtn.addEventListener("click", () => {
     const ok = window.confirm("정말 초기화할까요?\n배치도/학생/옵션이 초기화됩니다.");
     if (!ok) return;
+      try { localStorage.removeItem(LS_STUDENTS_KEY); } catch (e) {}
     pushUndo("clearAll");
     clearAll();
     toast("초기화되었습니다.");

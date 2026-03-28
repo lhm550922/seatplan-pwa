@@ -1,4 +1,4 @@
-/* SeatPlan PWA - Service Worker (v0.98)
+/* SeatPlan PWA - Service Worker (v0.99)
    교체용 sw.js (GitHub Pages 포함)
 
    ✅ 변경점
@@ -15,9 +15,9 @@ const CACHE_NAME = "seatplan-pwa-v97"
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=0.98",
-  "./app.js?v=0.98",
-  "./manifest.webmanifest?v=0.98",
+  "./styles.css?v=0.99",
+  "./app.js?v=0.99",
+  "./manifest.webmanifest?v=0.99",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./guide.html",

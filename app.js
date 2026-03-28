@@ -203,7 +203,8 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const UNDO_MAX = 30;
+  const APP_VERSION = "0.99";
+const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
     try{
@@ -217,7 +218,7 @@
     try {
       // Any new action invalidates redo history
       redoStack = [];
-      const snap = currentSnapshot();
+      const snap = snapshotForHistory();
       // deep copy via JSON to detach references
       const raw = JSON.stringify(snap);
       undoStack.push(raw);
@@ -232,7 +233,7 @@
     if (!undoStack.length) { toast("되돌릴 내용이 없어요."); return; }
     // Save current state for redo
     try {
-      const cur = JSON.stringify(currentSnapshot());
+      const cur = JSON.stringify(snapshotForHistory());
       redoStack.push(cur);
       if (redoStack.length > UNDO_MAX) redoStack.shift();
     } catch (e) {}
@@ -258,7 +259,7 @@
     if (!redoStack.length) { toast("다시 실행할 내용이 없어요."); return; }
     // Save current state for undo
     try {
-      const cur = JSON.stringify(currentSnapshot());
+      const cur = JSON.stringify(snapshotForHistory());
       undoStack.push(cur);
       if (undoStack.length > UNDO_MAX) undoStack.shift();
     } catch (e) {}
@@ -292,10 +293,10 @@ function centerToast(msg) {
         position: "fixed",
         left: "50%",
         top: "50%",
-        transform: "translate(-50%, -50%) scale(0.98)",
+        transform: "translate(-50%, -50%) scale(0.99)",
         background: "rgba(0,0,0,0.82)",
         border: "1px solid rgba(255,255,255,0.18)",
-        color: "rgba(229,231,235,0.98)",
+        color: "rgba(229,231,235,0.99)",
         padding: "14px 18px",
         borderRadius: "16px",
         fontSize: "16px",
@@ -334,7 +335,7 @@ function centerToast(msg) {
     centerToastEl._t = setTimeout(() => {
       centerToastEl.classList.remove("show");
       centerToastEl.style.opacity = "0";
-      centerToastEl.style.transform = "translate(-50%, -50%) scale(0.98)";
+      centerToastEl.style.transform = "translate(-50%, -50%) scale(0.99)";
       // transition 이후 완전 투명 상태 유지(요소는 남겨둠)
     }, 1800);
   }
@@ -4213,9 +4214,39 @@ function updateRotationLedgerForSlot(slotId) {
     updateSlotActionEnables();
   }
 
-  function currentSnapshot() {
+  function snapshotForHistory() {
+    // ✅ Undo/Redo에서 사용할 스냅샷은 반드시 JSON 직렬화 가능한 값만 포함해야 함
+    // (순환 참조/Map/DOM 참조 등이 섞이면 redo 저장이 실패할 수 있어요.)
     return {
-  version: "0.89",
+      version: APP_VERSION,
+      cols, rows,
+      seatType: seatTypeSel ? seatTypeSel.value : "single",
+      boardAtTop,
+      layout: { layoutKind, layoutParams },
+      ui: {
+        useForbidden: useForbidden?.checked ?? true,
+        useRotation: useRotation?.checked ?? true,
+        showSeatNo: !!(showSeatNo && showSeatNo.checked),
+        showGroups: !!(showGroups && showGroups.checked),
+        showGender: !!(showGender && showGender.checked),
+        includeDiagonal: !!(includeDiagonal && includeDiagonal.checked),
+        includeSameGroup: !!(includeSameGroup && includeSameGroup.checked),
+        groupMode: groupMode ? groupMode.value : "none",
+        balanceLevels: !!(balanceLevels && balanceLevels.checked),
+        rotateFront: !!(rotateFront && rotateFront.checked),
+        rotateBack: !!(rotateBack && rotateBack.checked),
+      },
+      text: {
+        students: studentsInput ? studentsInput.value : "",
+        forbidden: forbiddenInput ? forbiddenInput.value : "",
+      },
+      seats,
+    };
+  }
+
+function currentSnapshot() {
+    return {
+  version: APP_VERSION,
       cols, rows,
       seatType: seatTypeSel ? seatTypeSel.value : "single",
       boardAtTop,
@@ -4238,7 +4269,6 @@ function updateRotationLedgerForSlot(slotId) {
         forbidden: forbiddenInput ? forbiddenInput.value : "",
       },
       seats,
-      history,
     };
   }
 

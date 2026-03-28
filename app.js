@@ -250,7 +250,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "1.4";
+  const APP_VERSION = "1.5";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -1956,8 +1956,121 @@ for (let i = 0; i < orderedIds.length; i += size) {
   function computeViolations() {
     violations = [];
 
+    // --- Rotation overlaps (front/back) ---
+    // Show them in the same warning bar as forbidden-pair violations.
+    // NOTE: Rotation avoidance can become impossible as history accumulates.
+    const rotationLines = [];
+    let rotationCount = 0;
+    try {
+      const rotOn = (!useRotation) || useRotation.checked;
+      const wantFront = !!(rotOn && rotateFront && rotateFront.checked);
+      const wantBack  = !!(rotOn && rotateBack && rotateBack.checked);
+      if (wantFront || wantBack) {
+        const rotationLedger = loadRotationLedger();
+        const slotIndexList = loadSlotIndex ? loadSlotIndex() : [];
+        const slotNameById = new Map();
+        try { for (const s of slotIndexList) slotNameById.set(String(s.id), s.name); } catch(e) {}
+
+        const rotationDetail = new Map(); // name -> { front:[{slot,t}], back:[{slot,t}] }
+        const bannedFrontNames = new Set();
+        const bannedBackNames = new Set();
+        for (const slotId of Object.keys(rotationLedger || {})) {
+          const e = rotationLedger[slotId];
+          if (!e) continue;
+          const slotName = slotNameById.get(String(slotId)) || String(slotId);
+          const t = Number(e.t || 0);
+          const fr = Array.isArray(e.front) ? e.front : [];
+          const bk = Array.isArray(e.back) ? e.back : [];
+          for (const n of fr) {
+            if (!n) continue;
+            const nm = String(n);
+            bannedFrontNames.add(nm);
+            if (!rotationDetail.has(nm)) rotationDetail.set(nm, { front: [], back: [] });
+            rotationDetail.get(nm).front.push({ slot: slotName, t });
+          }
+          for (const n of bk) {
+            if (!n) continue;
+            const nm = String(n);
+            bannedBackNames.add(nm);
+            if (!rotationDetail.has(nm)) rotationDetail.set(nm, { front: [], back: [] });
+            rotationDetail.get(nm).back.push({ slot: slotName, t });
+          }
+        }
+        for (const v of rotationDetail.values()) {
+          v.front.sort((a,b)=> (b.t||0)-(a.t||0));
+          v.back.sort((a,b)=> (b.t||0)-(a.t||0));
+        }
+
+        // Front/back row seat sets based on current orientation (boardAtTop)
+        const displayFrontRow = boardAtTop ? 0 : (rows - 1);
+        const displayBackRow  = boardAtTop ? (rows - 1) : 0;
+        const toDataRow = (displayRow) => boardAtTop ? displayRow : (rows - 1 - displayRow);
+        const frontRowIndex = toDataRow(displayFrontRow);
+        const backRowIndex  = toDataRow(displayBackRow);
+        const frontSeatSet = new Set();
+        const backSeatSet = new Set();
+        for (let cc=0; cc<cols; cc++){
+          frontSeatSet.add(frontRowIndex*cols + cc);
+          backSeatSet.add(backRowIndex*cols + cc);
+        }
+
+        const fmtDate = (t) => {
+          try {
+            if (!t) return "";
+            const d = new Date(t);
+            const y = d.getFullYear();
+            const m = String(d.getMonth()+1).padStart(2,"0");
+            const dd = String(d.getDate()).padStart(2,"0");
+            return `${y}-${m}-${dd}`;
+          } catch { return ""; }
+        };
+
+        const uniq = new Set();
+        for (const s of seats) {
+          if (!s || s.void || !s.name) continue;
+          const nm = String(s.name);
+          if (wantFront && frontSeatSet.has(s.id) && bannedFrontNames.has(nm)) {
+            const key = nm + "|front";
+            if (!uniq.has(key)) {
+              uniq.add(key);
+              rotationCount += 1;
+              const det = rotationDetail.get(nm);
+              const d0 = det && det.front && det.front[0];
+              const when = d0 ? `${d0.slot}(${fmtDate(d0.t)})` : "";
+              rotationLines.push(`- ${nm}(이전 맨 앞줄: ${when || "기록 있음"})`);
+            }
+          }
+          if (wantBack && backSeatSet.has(s.id) && bannedBackNames.has(nm)) {
+            const key = nm + "|back";
+            if (!uniq.has(key)) {
+              uniq.add(key);
+              rotationCount += 1;
+              const det = rotationDetail.get(nm);
+              const d0 = det && det.back && det.back[0];
+              const when = d0 ? `${d0.slot}(${fmtDate(d0.t)})` : "";
+              rotationLines.push(`- ${nm}(이전 맨 뒷줄: ${when || "기록 있음"})`);
+            }
+          }
+        }
+
+        if (rotationCount > 0) {
+          rotationLines.unshift("※ 저장된 배치도 전체 기록 기준으로 회피하면, 좌석 수에 따라 100% 회피가 불가능할 수 있어요.");
+        }
+      }
+    } catch(e) {
+      // ignore
+    }
+
     if (useForbidden && !useForbidden.checked) {
-      if (violationsBar) { violationsBar.style.display = "none"; violationsBar.textContent = ""; }
+      // forbidden off — still show rotation warnings if any
+      if (violationsBar) {
+        if (rotationCount > 0) {
+          violationsBar.textContent = `로테이션 중복 ${rotationCount}명:\n` + rotationLines.join("\n");
+          violationsBar.style.display = "block";
+        } else {
+          violationsBar.style.display = "none"; violationsBar.textContent = "";
+        }
+      }
       return;
     }
 
@@ -1966,7 +2079,14 @@ for (let i = 0; i < orderedIds.length; i += size) {
 
 
     if (forbid.size === 0) {
-      if (violationsBar) { violationsBar.style.display = "none"; violationsBar.textContent = ""; }
+      if (violationsBar) {
+        if (rotationCount > 0) {
+          violationsBar.textContent = `로테이션 중복 ${rotationCount}명:\n` + rotationLines.join("\n");
+          violationsBar.style.display = "block";
+        } else {
+          violationsBar.style.display = "none"; violationsBar.textContent = "";
+        }
+      }
       return;
     }
 
@@ -1992,19 +2112,33 @@ for (let i = 0; i < orderedIds.length; i += size) {
     }
 
     if (!violationsBar) return;
-    if (violations.length === 0) {
+    const hasForbidden = (violations.length > 0);
+    const hasRotation = (rotationCount > 0);
+
+    if (!hasForbidden && !hasRotation) {
       violationsBar.style.display = "none";
       violationsBar.textContent = "";
-    } else {
+      return;
+    }
+
+    const out = [];
+    if (hasForbidden) {
       const lines = violations.map(
         (v) => {
           const tag = v.sameGroup ? " (같은 모둠)" : "";
           return `- ${v.aName}(좌석 ${v.aId + 1}) ↔ ${v.bName}(좌석 ${v.bId + 1})${tag}`;
         }
       );
-      violationsBar.textContent = `금지쌍 위반 ${violations.length}건:\n` + lines.join("\n");
-      violationsBar.style.display = "block";
+      out.push(`금지쌍 위반 ${violations.length}건:`);
+      out.push(...lines);
     }
+    if (hasRotation) {
+      if (hasForbidden) out.push("");
+      out.push(`로테이션 중복 ${rotationCount}명:`);
+      out.push(...rotationLines);
+    }
+    violationsBar.textContent = out.join("\n");
+    violationsBar.style.display = "block";
   }
 
   function ensureHistoryFor(name) { if (!history[name]) history[name] = { front: 0, back: 0 }; }
@@ -2975,6 +3109,15 @@ function renderForbiddenGroupsFromTextarea() {
     uiMode = "none";
     selectedSeatId = null;
 
+
+    // ✅ 자동 배치 시점에 학생 명단이 비어 보이는 문제 방지
+    // - 다른 페이지(푸터) 다녀온 뒤에는 학생 입력 표는 보이지만 숨김 텍스트(studentsInput)가 비어 있을 수 있어,
+    //   우선 localStorage 저장본을 불러오고, 그 다음 표(UI)가 있으면 표→텍스트를 다시 동기화합니다.
+    try {
+      if (studentsInput && !(studentsInput.value || "").trim()) {
+        loadPersistedStudentsIfEmpty();
+      }
+    } catch(e) {}
 
     // 학생 입력 표(UI)가 존재하면, 저장 버튼을 누르지 않았더라도 최신 입력값을 반영
     try {

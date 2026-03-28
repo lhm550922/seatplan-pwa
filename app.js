@@ -203,7 +203,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "1.0";
+  const APP_VERSION = "1.1";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -1688,9 +1688,10 @@ for (let i = 0; i < orderedIds.length; i += size) {
     }
 
     const vioSet = new Set();
-    for (const v of violations) { vioSet.add(v.aId); vioSet.add(v.bId); }
+    // Export(이미지/인쇄)에서는 '금지쌍 위반 표시'를 숨깁니다.
 
-    forbidColorMap = buildForbiddenGroupColorMap();
+    // Export(이미지/인쇄)에서는 금지쌍 그룹 색 표시도 숨깁니다.
+    forbidColorMap = new Map();
 
     gridEl.innerHTML = "";
 
@@ -3063,12 +3064,50 @@ function renderForbiddenGroupsFromTextarea() {
       return cost;
     };
 
-    const totalCost = (seatToName) => {
+    
+    // 로테이션(맨 앞/맨 뒷줄) 공정 배치: 이전에 앞/뒤줄에 앉았던 학생은 같은 줄에 다시 앉지 않도록 강하게 페널티
+    const rotationCost = (seatToName) => {
+      try {
+        const rotOn = (!useRotation) || !!useRotation.checked;
+        if (!rotOn) return 0;
+        const frOn = !!(rotateFront && rotateFront.checked);
+        const bkOn = !!(rotateBack && rotateBack.checked);
+        if (!frOn && !bkOn) return 0;
+
+        const fIds = frOn ? frontRowIds() : [];
+        const bIds = bkOn ? backRowIds() : [];
+
+        let cost = 0;
+        if (frOn) {
+          for (const id of fIds) {
+            const name = seatToName[id];
+            if (!name) continue;
+            const h = history && history[name];
+            if (h && h.front) cost += Number(h.front) || 0;
+          }
+        }
+        if (bkOn) {
+          for (const id of bIds) {
+            const name = seatToName[id];
+            if (!name) continue;
+            const h = history && history[name];
+            if (h && h.back) cost += Number(h.back) || 0;
+          }
+        }
+        return cost;
+      } catch {
+        return 0;
+      }
+    };
+
+const totalCost = (seatToName) => {
       // 성별 불일치는 강하게, 금지쌍 위반은 그 다음, 수준 분산은 약하게
       const g = genderCost(seatToName);
       const f = forbiddenCost(seatToName);
       const l = levelBalanceCost(seatToName);
-      return g * 10000 + f * 100 + l * 10;
+      const r = rotationCost(seatToName);
+      // 성별 > 금지쌍 > 로테이션(앞/뒤줄) > 수준 분산 순서로 강하게 반영
+      return g * 10000 + f * 100 + r * 80 + l * 10;
     };
 
 
@@ -3083,8 +3122,35 @@ function renderForbiddenGroupsFromTextarea() {
 
       let remaining = shuffleArr(pool);
 
-      // seat order shuffle helps
-      const seatOrder = shuffleArr(freeSeatIds);
+      // 로테이션(앞/뒤줄) 옵션이 켜져 있으면 해당 줄 좌석을 먼저 채우고, 이전 기록이 적은 학생을 우선 배치
+      const rotOn = (!useRotation) || !!useRotation.checked;
+      const frOn = rotOn && !!(rotateFront && rotateFront.checked);
+      const bkOn = rotOn && !!(rotateBack && rotateBack.checked);
+      const frontSet = new Set(frOn ? frontRowIds() : []);
+      const backSet  = new Set(bkOn ? backRowIds() : []);
+
+      const priority = (id) => {
+        if (frontSet.has(id)) return 0;
+        if (backSet.has(id)) return 1;
+        return 2;
+      };
+
+      // seat order shuffle helps (but keep front/back priority)
+      const seatOrder = shuffleArr(freeSeatIds).sort((a,b)=>priority(a)-priority(b));
+
+      const pickMinHistory = (arr, id, kind) => {
+        // kind: 'front' | 'back'
+        let bestIdx = -1;
+        let bestVal = Infinity;
+        for (let k = 0; k < arr.length; k++) {
+          const nm = arr[k];
+          if (!allowedForSeat(nm, id)) continue;
+          const h = history && history[nm] ? (Number(history[nm][kind]) || 0) : 0;
+          if (h < bestVal) { bestVal = h; bestIdx = k; }
+        }
+        return bestIdx;
+      };
+
       for (const id of seatOrder) {
         if (remaining.length === 0) {
           seatToName[id] = null;
@@ -3094,15 +3160,22 @@ function renderForbiddenGroupsFromTextarea() {
         const req = getSeat(id)?.seatGender ?? "A";
         let pickIndex = 0;
 
+        // 1) 좌석 성별 요구 먼저 고려
         if (req !== "A") {
           pickIndex = -1;
           for (let k = 0; k < remaining.length; k++) {
-            if (allowedForSeat(remaining[k], id)) {
-              pickIndex = k;
-              break;
-            }
+            if (allowedForSeat(remaining[k], id)) { pickIndex = k; break; }
           }
           if (pickIndex === -1) pickIndex = 0;
+        }
+
+        // 2) 로테이션 대상(앞/뒤줄)이면, 조건을 만족하는 후보 중 이전 기록이 가장 적은 학생을 우선
+        if (frOn && frontSet.has(id)) {
+          const idx2 = pickMinHistory(remaining, id, "front");
+          if (idx2 !== -1) pickIndex = idx2;
+        } else if (bkOn && backSet.has(id)) {
+          const idx2 = pickMinHistory(remaining, id, "back");
+          if (idx2 !== -1) pickIndex = idx2;
         }
 
         const picked = remaining.splice(pickIndex, 1)[0];
@@ -3739,9 +3812,10 @@ let _savingStudentsNow = false;
     ctx.fillText("칠판", pad + gridW / 2, boardY + boardH / 2);
 
     const vioSet = new Set();
-    for (const v of violations) { vioSet.add(v.aId); vioSet.add(v.bId); }
+    // Export(이미지/인쇄)에서는 '금지쌍 위반 표시'를 숨깁니다.
 
-    forbidColorMap = buildForbiddenGroupColorMap();
+    // Export(이미지/인쇄)에서는 금지쌍 그룹 색 표시도 숨깁니다.
+    forbidColorMap = new Map();
 
     for (let displayR = 0; displayR < rows; displayR++) {
       const dataRow = mapDisplayRowToDataRow(displayR);
@@ -3771,14 +3845,6 @@ let _savingStudentsNow = false;
         if (seat.seatGender === "F") ctx.strokeStyle = "rgba(239,68,68,0.85)";
         ctx.lineWidth = 2;
 
-        // 고정 좌석: 파란 테두리 약간 강조
-        if (seat.locked) {
-          ctx.strokeStyle = "rgba(59,130,246,0.85)";
-          ctx.lineWidth = 2.5;
-        }
-
-        if (vioSet.has(seat.id)) { ctx.strokeStyle = "rgba(239,68,68,0.95)"; ctx.lineWidth = 3; }
-
         roundRect(ctx, x, y, seatW, seatH, 14, true, true);
 
         if (showSeatNo && showSeatNo.checked) {
@@ -3787,19 +3853,6 @@ let _savingStudentsNow = false;
           ctx.textAlign = "left";
           ctx.textBaseline = "top";
           ctx.fillText(String(seat.id + 1), x + 10, y + 8);
-        }
-
-        // 좌상단 핀(고정 표시) - 고정인 경우만
-        if (seat.locked) {
-          ctx.fillStyle = "rgba(59,130,246,0.22)";
-          ctx.strokeStyle = "rgba(59,130,246,0.55)";
-          ctx.lineWidth = 1.5;
-          roundRect(ctx, x + 8, y + 8, 28, 20, 8, true, true);
-          ctx.fillStyle = "rgba(219,234,254,1)";
-          ctx.font = "900 12px system-ui";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText("📌", x + 22, y + 18);
         }
 
         // Export (image/print): render names in solid black for readability

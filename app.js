@@ -203,7 +203,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "1.1";
+  const APP_VERSION = "1.2";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -1687,11 +1687,8 @@ for (let i = 0; i < orderedIds.length; i += size) {
       gridEl.style.gridTemplateColumns = `repeat(${cols}, ${seatW}px)`;
     }
 
-    const vioSet = new Set();
-    // Export(이미지/인쇄)에서는 '금지쌍 위반 표시'를 숨깁니다.
-
-    // Export(이미지/인쇄)에서는 금지쌍 그룹 색 표시도 숨깁니다.
-    forbidColorMap = new Map();
+    // 내보내기(이미지/인쇄)에서는 고정좌석/금지쌍 위반 표시를 숨깁니다.
+    forbidColorMap = buildForbiddenGroupColorMap();
 
     gridEl.innerHTML = "";
 
@@ -2977,6 +2974,60 @@ function renderForbiddenGroupsFromTextarea() {
 
     // 인접 금지(한 줄에 여러 명이면 모든 조합 금지)
     const forbiddenPairs = (useForbidden && !useForbidden.checked) ? [] : parseForbidden(forbiddenInput ? forbiddenInput.value : "");
+    // --- 로테이션(앞줄/뒷줄) 회피: 가장 최근 저장된 배치도의 기록을 기반으로 '이번 자동 배치'에서 최대한 피합니다.
+    // * 저장된 기록이 없으면 회피하지 않습니다.
+    // * 회피가 불가능한 경우(제약 충돌)에는 최소 겹침만 허용하고 안내 토스트를 띄웁니다.
+    let lastFrontSet = new Set();
+    let lastBackSet = new Set();
+    try {
+      if (useRotation && useRotation.checked && (rotateFront?.checked || rotateBack?.checked)) {
+        const ledger = loadRotationLedger();
+        let latest = null;
+        for (const sid of Object.keys(ledger || {})) {
+          const e = ledger[sid];
+          if (!e) continue;
+          const t = Number(e.t || 0);
+          if (!latest || t > Number(latest.t || 0)) latest = e;
+        }
+        if (latest) {
+          if (Array.isArray(latest.front)) lastFrontSet = new Set(latest.front.map(String));
+          if (Array.isArray(latest.back))  lastBackSet  = new Set(latest.back.map(String));
+        }
+      }
+    } catch {}
+
+    const frontIdsNow = frontRowIds();
+    const backIdsNow  = backRowIds();
+    const isRotationForbidden = (name, seatId) => {
+      if (!(useRotation && useRotation.checked)) return false;
+      if (!name) return false;
+      if (rotateFront && rotateFront.checked && lastFrontSet.size > 0 && frontIdsNow.includes(seatId)) {
+        return lastFrontSet.has(String(name));
+      }
+      if (rotateBack && rotateBack.checked && lastBackSet.size > 0 && backIdsNow.includes(seatId)) {
+        return lastBackSet.has(String(name));
+      }
+      return false;
+    };
+
+    const rotationCost = (seatToName) => {
+      if (!(useRotation && useRotation.checked)) return 0;
+      let c = 0;
+      if (rotateFront && rotateFront.checked && lastFrontSet.size > 0) {
+        for (const id of frontIdsNow) {
+          const nm = seatToName[id];
+          if (nm && lastFrontSet.has(String(nm))) c += 1;
+        }
+      }
+      if (rotateBack && rotateBack.checked && lastBackSet.size > 0) {
+        for (const id of backIdsNow) {
+          const nm = seatToName[id];
+          if (nm && lastBackSet.has(String(nm))) c += 1;
+        }
+      }
+      return c;
+    };
+
 
     const allowedForSeat = (name, seatId) => {
       const seat = getSeat(seatId);
@@ -3064,50 +3115,13 @@ function renderForbiddenGroupsFromTextarea() {
       return cost;
     };
 
-    
-    // 로테이션(맨 앞/맨 뒷줄) 공정 배치: 이전에 앞/뒤줄에 앉았던 학생은 같은 줄에 다시 앉지 않도록 강하게 페널티
-    const rotationCost = (seatToName) => {
-      try {
-        const rotOn = (!useRotation) || !!useRotation.checked;
-        if (!rotOn) return 0;
-        const frOn = !!(rotateFront && rotateFront.checked);
-        const bkOn = !!(rotateBack && rotateBack.checked);
-        if (!frOn && !bkOn) return 0;
-
-        const fIds = frOn ? frontRowIds() : [];
-        const bIds = bkOn ? backRowIds() : [];
-
-        let cost = 0;
-        if (frOn) {
-          for (const id of fIds) {
-            const name = seatToName[id];
-            if (!name) continue;
-            const h = history && history[name];
-            if (h && h.front) cost += Number(h.front) || 0;
-          }
-        }
-        if (bkOn) {
-          for (const id of bIds) {
-            const name = seatToName[id];
-            if (!name) continue;
-            const h = history && history[name];
-            if (h && h.back) cost += Number(h.back) || 0;
-          }
-        }
-        return cost;
-      } catch {
-        return 0;
-      }
-    };
-
-const totalCost = (seatToName) => {
-      // 성별 불일치는 강하게, 금지쌍 위반은 그 다음, 수준 분산은 약하게
+    const totalCost = (seatToName) => {
+      // 우선순위: 성별 지정(가장 강하게) > 로테이션(앞/뒤줄 회피) > 금지쌍 > 모둠 수준 분산
       const g = genderCost(seatToName);
+      const r = rotationCost(seatToName);
       const f = forbiddenCost(seatToName);
       const l = levelBalanceCost(seatToName);
-      const r = rotationCost(seatToName);
-      // 성별 > 금지쌍 > 로테이션(앞/뒤줄) > 수준 분산 순서로 강하게 반영
-      return g * 10000 + f * 100 + r * 80 + l * 10;
+      return g * 10000000 + r * 100000 + f * 100 + l * 10;
     };
 
 
@@ -3122,35 +3136,8 @@ const totalCost = (seatToName) => {
 
       let remaining = shuffleArr(pool);
 
-      // 로테이션(앞/뒤줄) 옵션이 켜져 있으면 해당 줄 좌석을 먼저 채우고, 이전 기록이 적은 학생을 우선 배치
-      const rotOn = (!useRotation) || !!useRotation.checked;
-      const frOn = rotOn && !!(rotateFront && rotateFront.checked);
-      const bkOn = rotOn && !!(rotateBack && rotateBack.checked);
-      const frontSet = new Set(frOn ? frontRowIds() : []);
-      const backSet  = new Set(bkOn ? backRowIds() : []);
-
-      const priority = (id) => {
-        if (frontSet.has(id)) return 0;
-        if (backSet.has(id)) return 1;
-        return 2;
-      };
-
-      // seat order shuffle helps (but keep front/back priority)
-      const seatOrder = shuffleArr(freeSeatIds).sort((a,b)=>priority(a)-priority(b));
-
-      const pickMinHistory = (arr, id, kind) => {
-        // kind: 'front' | 'back'
-        let bestIdx = -1;
-        let bestVal = Infinity;
-        for (let k = 0; k < arr.length; k++) {
-          const nm = arr[k];
-          if (!allowedForSeat(nm, id)) continue;
-          const h = history && history[nm] ? (Number(history[nm][kind]) || 0) : 0;
-          if (h < bestVal) { bestVal = h; bestIdx = k; }
-        }
-        return bestIdx;
-      };
-
+      // seat order shuffle helps
+      const seatOrder = shuffleArr(freeSeatIds);
       for (const id of seatOrder) {
         if (remaining.length === 0) {
           seatToName[id] = null;
@@ -3160,22 +3147,32 @@ const totalCost = (seatToName) => {
         const req = getSeat(id)?.seatGender ?? "A";
         let pickIndex = 0;
 
-        // 1) 좌석 성별 요구 먼저 고려
         if (req !== "A") {
+          // 1) 성별 조건 + 로테이션 회피(가능하면)
           pickIndex = -1;
           for (let k = 0; k < remaining.length; k++) {
-            if (allowedForSeat(remaining[k], id)) { pickIndex = k; break; }
+            if (allowedForSeat(remaining[k], id) && !isRotationForbidden(remaining[k], id)) {
+              pickIndex = k;
+              break;
+            }
+          }
+          // 2) 성별 조건만(로테이션은 불가피할 때 허용)
+          if (pickIndex === -1) {
+            for (let k = 0; k < remaining.length; k++) {
+              if (allowedForSeat(remaining[k], id)) {
+                pickIndex = k;
+                break;
+              }
+            }
           }
           if (pickIndex === -1) pickIndex = 0;
-        }
-
-        // 2) 로테이션 대상(앞/뒤줄)이면, 조건을 만족하는 후보 중 이전 기록이 가장 적은 학생을 우선
-        if (frOn && frontSet.has(id)) {
-          const idx2 = pickMinHistory(remaining, id, "front");
-          if (idx2 !== -1) pickIndex = idx2;
-        } else if (bkOn && backSet.has(id)) {
-          const idx2 = pickMinHistory(remaining, id, "back");
-          if (idx2 !== -1) pickIndex = idx2;
+        } else {
+          // 성별 무관 좌석도 로테이션은 가능하면 회피
+          pickIndex = -1;
+          for (let k = 0; k < remaining.length; k++) {
+            if (!isRotationForbidden(remaining[k], id)) { pickIndex = k; break; }
+          }
+          if (pickIndex === -1) pickIndex = 0;
         }
 
         const picked = remaining.splice(pickIndex, 1)[0];
@@ -3295,6 +3292,14 @@ const totalCost = (seatToName) => {
 
       toast(`성별 지정 조건을 모두 만족시키기 어려워요(불일치 ${bestGlobalGender}명).${reason ? " " + reason : ""}`);
     }
+    // 로테이션 겹침 안내(가능한 한 피하지만, 제약 충돌로 불가피한 경우)
+    try {
+      const rotOverlap = rotationCost(bestGlobal);
+      if (rotOverlap > 0 && (rotateFront?.checked || rotateBack?.checked) && (lastFrontSet.size > 0 || lastBackSet.size > 0)) {
+        toast(`로테이션 조건을 모두 만족시키기 어려워요(지난 기록과 겹침 ${rotOverlap}명).`);
+      }
+    } catch {}
+
     log("자동 배치 완료 ✅");
   }
 
@@ -3812,10 +3817,9 @@ let _savingStudentsNow = false;
     ctx.fillText("칠판", pad + gridW / 2, boardY + boardH / 2);
 
     const vioSet = new Set();
-    // Export(이미지/인쇄)에서는 '금지쌍 위반 표시'를 숨깁니다.
+    for (const v of violations) { vioSet.add(v.aId); vioSet.add(v.bId); }
 
-    // Export(이미지/인쇄)에서는 금지쌍 그룹 색 표시도 숨깁니다.
-    forbidColorMap = new Map();
+    forbidColorMap = buildForbiddenGroupColorMap();
 
     for (let displayR = 0; displayR < rows; displayR++) {
       const dataRow = mapDisplayRowToDataRow(displayR);
@@ -3845,6 +3849,7 @@ let _savingStudentsNow = false;
         if (seat.seatGender === "F") ctx.strokeStyle = "rgba(239,68,68,0.85)";
         ctx.lineWidth = 2;
 
+
         roundRect(ctx, x, y, seatW, seatH, 14, true, true);
 
         if (showSeatNo && showSeatNo.checked) {
@@ -3854,6 +3859,7 @@ let _savingStudentsNow = false;
           ctx.textBaseline = "top";
           ctx.fillText(String(seat.id + 1), x + 10, y + 8);
         }
+
 
         // Export (image/print): render names in solid black for readability
         if (seat.name) {

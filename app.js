@@ -67,6 +67,18 @@
 
   // 임시 작업 자동 복원(페이지 이동 후 돌아와도 유지)
   const AUTOSAVE_KEY = "seatplan_autosave_v1_4";
+  function isBrowserReloadNavigation() {
+    try {
+      const navEntries = (typeof performance !== "undefined" && performance.getEntriesByType)
+        ? performance.getEntriesByType("navigation")
+        : [];
+      if (navEntries && navEntries[0] && navEntries[0].type === "reload") return true;
+      if (typeof performance !== "undefined" && performance.navigation) {
+        return performance.navigation.type === 1;
+      }
+    } catch (e) {}
+    return false;
+  }
   function saveAutosaveSnapshot() {
     try {
       // ✅ 학생 입력(표 UI)이 켜져 있을 때도 최신 입력값을 textarea에 반영해서 저장
@@ -250,7 +262,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "1.5";
+  const APP_VERSION = "1.6";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -4529,7 +4541,7 @@ function updateRotationLedgerForSlot(slotId) {
       layout: { layoutKind, layoutParams },
       ui: {
         useForbidden: useForbidden?.checked ?? true,
-        useRotation: useRotation?.checked ?? true,
+        useRotation: useRotation?.checked ?? false,
         showSeatNo: !!(showSeatNo && showSeatNo.checked),
         showGroups: !!(showGroups && showGroups.checked),
         showGender: !!(showGender && showGender.checked),
@@ -4557,7 +4569,7 @@ function currentSnapshot() {
       layout: { layoutKind, layoutParams },
       ui: {
       useForbidden: useForbidden?.checked ?? true,
-      useRotation: useRotation?.checked ?? true,
+      useRotation: useRotation?.checked ?? false,
         showSeatNo: !!(showSeatNo && showSeatNo.checked),
         showGroups: !!(showGroups && showGroups.checked),
         showGender: !!(showGender && showGender.checked),
@@ -4610,7 +4622,7 @@ function currentSnapshot() {
     if (rotateFront) rotateFront.checked = !!ui.rotateFront;
     if (rotateBack) rotateBack.checked = !!ui.rotateBack;
     if (useForbidden) useForbidden.checked = ui.useForbidden ?? true;
-    if (useRotation) useRotation.checked = ui.useRotation ?? true;
+    if (useRotation) useRotation.checked = ui.useRotation ?? false;
 
     const text = snap.text || {};
     if (studentsInput) studentsInput.value = text.students ?? "";
@@ -4763,15 +4775,18 @@ function currentSnapshot() {
     } catch (e) {}
 
     // 페이지 이동/업데이트 후에도 작업이 유지되도록 임시 저장본을 우선 복원
-    const autosnap = loadAutosaveSnapshot();
-    if (autosnap) {
-      try {
-        applySnapshot(autosnap);
-        toast("작업을 복원했어요.");
-        return;
-      } catch (e) {
-        // 손상된 임시 저장본은 제거하고 기본값으로 시작
-        clearAutosaveSnapshot();
+    // 단, 브라우저 새로고침(reload)에서는 예전처럼 초기 상태로 시작하도록 복원하지 않음
+    if (!isBrowserReloadNavigation()) {
+      const autosnap = loadAutosaveSnapshot();
+      if (autosnap) {
+        try {
+          applySnapshot(autosnap);
+          toast("작업을 복원했어요.");
+          return;
+        } catch (e) {
+          // 손상된 임시 저장본은 제거하고 기본값으로 시작
+          clearAutosaveSnapshot();
+        }
       }
     }
 

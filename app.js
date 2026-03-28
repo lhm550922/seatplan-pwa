@@ -203,7 +203,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "0.99";
+  const APP_VERSION = "1.0";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -274,7 +274,7 @@ const UNDO_MAX = 30;
       closeGroupMenu();
       computeViolations();
       renderGrid();
-      toast("한 단계 앞으로 되돌렸어요.");
+      toast("한 단계 뒤로 다시 되돌렸어요.");
     } catch (e) {
       toast("다시 실행에 실패했어요.");
     }
@@ -293,10 +293,10 @@ function centerToast(msg) {
         position: "fixed",
         left: "50%",
         top: "50%",
-        transform: "translate(-50%, -50%) scale(0.99)",
+        transform: "translate(-50%, -50%) scale(1.0)",
         background: "rgba(0,0,0,0.82)",
         border: "1px solid rgba(255,255,255,0.18)",
-        color: "rgba(229,231,235,0.99)",
+        color: "rgba(229,231,235,1.0)",
         padding: "14px 18px",
         borderRadius: "16px",
         fontSize: "16px",
@@ -335,7 +335,7 @@ function centerToast(msg) {
     centerToastEl._t = setTimeout(() => {
       centerToastEl.classList.remove("show");
       centerToastEl.style.opacity = "0";
-      centerToastEl.style.transform = "translate(-50%, -50%) scale(0.99)";
+      centerToastEl.style.transform = "translate(-50%, -50%) scale(1.0)";
       // transition 이후 완전 투명 상태 유지(요소는 남겨둠)
     }, 1800);
   }

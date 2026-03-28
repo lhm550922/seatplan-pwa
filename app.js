@@ -203,7 +203,8 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "1.0";
+  let historyApplying = false;
+  const APP_VERSION = "1.1";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -215,6 +216,7 @@ const UNDO_MAX = 30;
   }
 
   function pushUndo(reason) {
+    if (historyApplying) return;
     try {
       // Any new action invalidates redo history
       redoStack = [];
@@ -241,6 +243,7 @@ const UNDO_MAX = 30;
     let raw = undoStack.pop();
     try {
       const snap = JSON.parse(raw);
+      historyApplying = true;
       applySnapshot(snap);
       uiMode = "none";
       selectedSeatId = null;
@@ -248,8 +251,10 @@ const UNDO_MAX = 30;
       closeGroupMenu();
       computeViolations();
       renderGrid();
+      historyApplying = false;
       toast("한 단계 이전으로 되돌렸어요.");
     } catch (e) {
+      historyApplying = false;
       toast("되돌리기에 실패했어요.");
     }
     updateHistoryButtons();
@@ -267,6 +272,7 @@ const UNDO_MAX = 30;
     let raw = redoStack.pop();
     try {
       const snap = JSON.parse(raw);
+      historyApplying = true;
       applySnapshot(snap);
       uiMode = "none";
       selectedSeatId = null;
@@ -274,8 +280,10 @@ const UNDO_MAX = 30;
       closeGroupMenu();
       computeViolations();
       renderGrid();
+      historyApplying = false;
       toast("한 단계 뒤로 다시 되돌렸어요.");
     } catch (e) {
+      historyApplying = false;
       toast("다시 실행에 실패했어요.");
     }
     updateHistoryButtons();

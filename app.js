@@ -66,11 +66,23 @@
   const LS_STUDENTS_KEY = "seatplan_students_v1";
 
   // 임시 작업 자동 복원(페이지 이동 후 돌아와도 유지)
-  const AUTOSAVE_KEY = "seatplan_autosave_v1_3";
+  const AUTOSAVE_KEY = "seatplan_autosave_v1_4";
   function saveAutosaveSnapshot() {
     try {
-      const snap = snapshotForHistory ? snapshotForHistory() : null;
+      // ✅ 학생 입력(표 UI)이 켜져 있을 때도 최신 입력값을 textarea에 반영해서 저장
+      try {
+        if (studentsInput && studentsTbody) {
+          studentsInput.value = tableToStudentsText();
+          if (typeof normalizeStudentsInput === 'function') normalizeStudentsInput();
+        }
+      } catch (e) {}
+
+      // ✅ Autosave는 '현재 상태'를 저장해야 함(Undo용 스냅샷은 변경 '이전' 상태)
+      const snap = (typeof currentSnapshot === "function")
+        ? currentSnapshot()
+        : (snapshotForHistory ? snapshotForHistory() : null);
       if (!snap) return;
+
       localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ snap, t: Date.now() }));
     } catch (e) {}
   }
@@ -85,6 +97,18 @@
   }
   function clearAutosaveSnapshot() {
     try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) {}
+  }
+
+  // autosave는 너무 자주 쓰면 부담이 되므로 간단히 디바운스 처리
+  let _autosaveTimer = null;
+  function scheduleAutosave() {
+    try {
+      if (_autosaveTimer) clearTimeout(_autosaveTimer);
+      _autosaveTimer = setTimeout(() => {
+        _autosaveTimer = null;
+        saveAutosaveSnapshot();
+      }, 180);
+    } catch (e) {}
   }
 
   function loadPersistedStudentsIfEmpty(){
@@ -226,7 +250,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "1.3";
+  const APP_VERSION = "1.4";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -247,7 +271,6 @@ const UNDO_MAX = 30;
       undoStack.push(raw);
       if (undoStack.length > UNDO_MAX) undoStack.shift();
       updateHistoryButtons();
-      saveAutosaveSnapshot();
     } catch (e) {
       // ignore
     }
@@ -1765,6 +1788,9 @@ for (let i = 0; i < orderedIds.length; i += size) {
       if (tag) positionGroupMenu(tag);
       else closeGroupMenu();
     }
+
+    // ✅ 화면이 갱신된 후 현재 작업 상태를 autosave(페이지 이동 후 복원용)
+    scheduleAutosave();
   }
 
   // ===== Seat rendering =====
@@ -2180,8 +2206,7 @@ function renderForbiddenGroupsFromTextarea() {
       syncOptionEnables();
       computeViolations();
       renderGrid();
-        saveAutosaveSnapshot();
-  }
+    }
   }
 
   function ensureShowGroupsForBalance(){
@@ -3039,8 +3064,13 @@ function renderForbiddenGroupsFromTextarea() {
       }
     } catch(e) {}
 
-    const frontRowIndex = boardAtTop ? 0 : (rows - 1);
-    const backRowIndex  = boardAtTop ? (rows - 1) : 0;
+    // ✅ 로테이션(앞/뒷줄) 판단도 '화면에서 칠판과 가까운 줄' 기준으로
+    const displayFrontRow = boardAtTop ? 0 : (rows - 1);
+    const displayBackRow  = boardAtTop ? (rows - 1) : 0;
+    const toDataRow = (displayRow) => boardAtTop ? displayRow : (rows - 1 - displayRow);
+    const frontRowIndex = toDataRow(displayFrontRow);
+    const backRowIndex  = toDataRow(displayBackRow);
+
     const frontSeatSet = new Set();
     const backSeatSet = new Set();
     for (let cc=0; cc<cols; cc++){
@@ -3140,12 +3170,27 @@ function renderForbiddenGroupsFromTextarea() {
       return cost;
     };
 
+    const rotationViolation = (seatToName) => {
+      // 앞/뒷줄 로테이션 위반(저장 배치도 전체 기록 기준)
+      let c = 0;
+      for (const id of activeSeatIds) {
+        const nm = seatToName[id];
+        if (!nm) continue;
+        const s = String(nm);
+        if (frontSeatSet.has(id) && bannedFrontNames.has(s)) c += 1;
+        if (backSeatSet.has(id) && bannedBackNames.has(s)) c += 1;
+      }
+      return c;
+    };
+
     const totalCost = (seatToName) => {
+      // ✅ 로테이션 위반은 '하드 제약'에 가깝게 매우 큰 페널티
+      const r = rotationViolation(seatToName);
       // 성별 불일치는 강하게, 금지쌍 위반은 그 다음, 수준 분산은 약하게
       const g = genderCost(seatToName);
       const f = forbiddenCost(seatToName);
       const l = levelBalanceCost(seatToName);
-      return g * 10000 + f * 100 + l * 10;
+      return r * 1000000 + g * 10000 + f * 100 + l * 10;
     };
 
 
@@ -3168,19 +3213,16 @@ function renderForbiddenGroupsFromTextarea() {
           continue;
         }
 
-        const req = getSeat(id)?.seatGender ?? "A";
-        let pickIndex = 0;
-
-        if (req !== "A") {
-          pickIndex = -1;
-          for (let k = 0; k < remaining.length; k++) {
-            if (allowedForSeat(remaining[k], id)) {
-              pickIndex = k;
-              break;
-            }
+        // ✅ 회피 제약(로테이션/성별좌석 등)은 좌석 성별 옵션과 무관하게 항상 적용
+        // (기존에는 req!=="A"일 때만 검사하여, 로테이션이 거의 반영되지 않는 문제가 있었음)
+        let pickIndex = -1;
+        for (let k = 0; k < remaining.length; k++) {
+          if (allowedForSeat(remaining[k], id)) {
+            pickIndex = k;
+            break;
           }
-          if (pickIndex === -1) pickIndex = 0;
         }
+        if (pickIndex == -1) pickIndex = 0;
 
         const picked = remaining.splice(pickIndex, 1)[0];
         seatToName[id] = picked ?? null;
@@ -3900,8 +3942,8 @@ let _savingStudentsNow = false;
           ctx.fillText(String(seat.id + 1), x + 10, y + 8);
         }
 
-        // 좌상단 핀(고정 표시) - 고정인 경우만
-        if (seat.locked) {
+        // 좌상단 핀(고정 표시) - ✅ 출력에서는 표시하지 않음
+        if (false && seat.locked) {
           ctx.fillStyle = "rgba(59,130,246,0.22)";
           ctx.strokeStyle = "rgba(59,130,246,0.55)";
           ctx.lineWidth = 1.5;
@@ -4036,8 +4078,16 @@ let _savingStudentsNow = false;
     const byId = new Map();
     for (const s of seatArr) byId.set(Number(s.id), s);
 
-    const frontRow = bat ? 0 : (r - 1);
-    const backRow  = bat ? (r - 1) : 0;
+    // ✅ '앞/뒷줄'은 **화면에서 칠판과 가까운 줄** 기준으로 판단합니다.
+    // - boardAtTop=true  : 칠판이 위 → 화면 1행(위)이 '앞줄'
+    // - boardAtTop=false : 칠판이 아래 → 화면 마지막 행(아래)이 '앞줄'
+    // 좌석 데이터(seats)는 boardAtTop=false일 때 화면과 반대로 매핑되므로,
+    // 화면 행(displayRow)을 데이터 행(dataRow)으로 변환해 계산합니다.
+    const displayFrontRow = bat ? 0 : (r - 1);
+    const displayBackRow  = bat ? (r - 1) : 0;
+    const toDataRow = (displayRow) => bat ? displayRow : (r - 1 - displayRow);
+    const frontRow = toDataRow(displayFrontRow);
+    const backRow  = toDataRow(displayBackRow);
 
     const frontIds = [];
     const backIds = [];
@@ -4558,6 +4608,16 @@ function currentSnapshot() {
     updateOrientationButtonLabel();
     applyHintVisibility();
     openIncomingShareModalFromUrl();
+
+    // ✅ 푸터(다른 페이지)로 이동하기 직전에 현재 작업을 즉시 저장
+    try {
+      const links = document.querySelectorAll('footer a');
+      links.forEach(a => {
+        a.addEventListener('click', () => {
+          try { saveAutosaveSnapshot(); } catch (e) {}
+        });
+      });
+    } catch (e) {}
 
     // 페이지 이동/업데이트 후에도 작업이 유지되도록 임시 저장본을 우선 복원
     const autosnap = loadAutosaveSnapshot();

@@ -203,9 +203,8 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  let historyApplying = false;
-  const APP_VERSION = "1.2";
-  const UNDO_MAX = 30;
+  const APP_VERSION = "1.0";
+const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
     try{
@@ -216,7 +215,6 @@
   }
 
   function pushUndo(reason) {
-    if (historyApplying) return;
     try {
       // Any new action invalidates redo history
       redoStack = [];
@@ -233,7 +231,6 @@
 
   function doUndo() {
     if (!undoStack.length) { toast("되돌릴 내용이 없어요."); return; }
-
     // Save current state for redo
     try {
       const cur = JSON.stringify(snapshotForHistory());
@@ -241,15 +238,18 @@
       if (redoStack.length > UNDO_MAX) redoStack.shift();
     } catch (e) {}
 
-    const raw = undoStack.pop();
+    let raw = undoStack.pop();
     try {
       const snap = JSON.parse(raw);
-      historyApplying = true;
-      applySnapshot(snap); // applySnapshot 내부에서 render/검증까지 처리
-      historyApplying = false;
+      applySnapshot(snap);
+      uiMode = "none";
+      selectedSeatId = null;
+      moveFromSeatId = null;
+      closeGroupMenu();
+      computeViolations();
+      renderGrid();
       toast("한 단계 이전으로 되돌렸어요.");
     } catch (e) {
-      historyApplying = false;
       toast("되돌리기에 실패했어요.");
     }
     updateHistoryButtons();
@@ -257,7 +257,6 @@
 
   function doRedo() {
     if (!redoStack.length) { toast("다시 실행할 내용이 없어요."); return; }
-
     // Save current state for undo
     try {
       const cur = JSON.stringify(snapshotForHistory());
@@ -265,15 +264,18 @@
       if (undoStack.length > UNDO_MAX) undoStack.shift();
     } catch (e) {}
 
-    const raw = redoStack.pop();
+    let raw = redoStack.pop();
     try {
       const snap = JSON.parse(raw);
-      historyApplying = true;
       applySnapshot(snap);
-      historyApplying = false;
-      toast("한 단계 뒤로 다시 되돌렸어요.");
+      uiMode = "none";
+      selectedSeatId = null;
+      moveFromSeatId = null;
+      closeGroupMenu();
+      computeViolations();
+      renderGrid();
+      toast("한 단계 앞으로 되돌렸어요.");
     } catch (e) {
-      historyApplying = false;
       toast("다시 실행에 실패했어요.");
     }
     updateHistoryButtons();
@@ -291,10 +293,10 @@ function centerToast(msg) {
         position: "fixed",
         left: "50%",
         top: "50%",
-        transform: "translate(-50%, -50%) scale(1.0)",
+        transform: "translate(-50%, -50%) scale(0.99)",
         background: "rgba(0,0,0,0.82)",
         border: "1px solid rgba(255,255,255,0.18)",
-        color: "rgba(229,231,235,1.0)",
+        color: "rgba(229,231,235,0.99)",
         padding: "14px 18px",
         borderRadius: "16px",
         fontSize: "16px",
@@ -333,7 +335,7 @@ function centerToast(msg) {
     centerToastEl._t = setTimeout(() => {
       centerToastEl.classList.remove("show");
       centerToastEl.style.opacity = "0";
-      centerToastEl.style.transform = "translate(-50%, -50%) scale(1.0)";
+      centerToastEl.style.transform = "translate(-50%, -50%) scale(0.99)";
       // transition 이후 완전 투명 상태 유지(요소는 남겨둠)
     }, 1800);
   }

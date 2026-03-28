@@ -64,6 +64,29 @@
 
   // 학생 명단 영구 보존(v0.92 patch): "학생 입력 > 저장"을 누른 명단을 로컬에 저장해 업데이트/새로고침 후에도 복원
   const LS_STUDENTS_KEY = "seatplan_students_v1";
+
+  // 임시 작업 자동 복원(페이지 이동 후 돌아와도 유지)
+  const AUTOSAVE_KEY = "seatplan_autosave_v1_3";
+  function saveAutosaveSnapshot() {
+    try {
+      const snap = snapshotForHistory ? snapshotForHistory() : null;
+      if (!snap) return;
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ snap, t: Date.now() }));
+    } catch (e) {}
+  }
+  function loadAutosaveSnapshot() {
+    try {
+      const raw = localStorage.getItem(AUTOSAVE_KEY);
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      if (obj && obj.snap) return obj.snap;
+      return null;
+    } catch (e) { return null; }
+  }
+  function clearAutosaveSnapshot() {
+    try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) {}
+  }
+
   function loadPersistedStudentsIfEmpty(){
     try{
       if(!studentsInput) return;
@@ -203,7 +226,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "1.0";
+  const APP_VERSION = "1.3";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -224,6 +247,7 @@ const UNDO_MAX = 30;
       undoStack.push(raw);
       if (undoStack.length > UNDO_MAX) undoStack.shift();
       updateHistoryButtons();
+      saveAutosaveSnapshot();
     } catch (e) {
       // ignore
     }
@@ -1687,8 +1711,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
       gridEl.style.gridTemplateColumns = `repeat(${cols}, ${seatW}px)`;
     }
 
-    const vioSet = new Set();
-    for (const v of violations) { vioSet.add(v.aId); vioSet.add(v.bId); }
+    const vioSet = new Set(); // Export: do not mark forbidden violations
 
     forbidColorMap = buildForbiddenGroupColorMap();
 
@@ -2157,7 +2180,8 @@ function renderForbiddenGroupsFromTextarea() {
       syncOptionEnables();
       computeViolations();
       renderGrid();
-    }
+        saveAutosaveSnapshot();
+  }
   }
 
   function ensureShowGroupsForBalance(){
@@ -2977,63 +3001,66 @@ function renderForbiddenGroupsFromTextarea() {
     // 인접 금지(한 줄에 여러 명이면 모든 조합 금지)
     const forbiddenPairs = (useForbidden && !useForbidden.checked) ? [] : parseForbidden(forbiddenInput ? forbiddenInput.value : "");
 
-    // ===== 로테이션(맨앞/맨뒤) 하드 제약 =====
-    const rotOn = (useRotation ? !!useRotation.checked : true);
-    const frOn = rotOn && (rotateFront ? !!rotateFront.checked : false);
-    const bkOn = rotOn && (rotateBack ? !!rotateBack.checked : false);
 
-    const frontIdSet = new Set(frOn ? frontRowIds() : []);
-    const backIdSet  = new Set(bkOn ? backRowIds() : []);
+    // --- 로테이션(앞/뒤줄) 하드 회피: 저장된 배치도 전체 기록 기준 ---
+    const rotationLedger = loadRotationLedger();
+    const slotIndexList = loadSlotIndex ? loadSlotIndex() : [];
+    const slotNameById = new Map();
+    try { for (const s of slotIndexList) slotNameById.set(String(s.id), s.name); } catch(e) {}
 
-    // 가장 최근(저장된 배치도 중 최신) 로테이션 기록 1개를 사용
-    let prevFrontSet = new Set();
-    let prevBackSet  = new Set();
+    const rotationDetail = new Map(); // name -> { front:[{slot,t}], back:[{slot,t}] }
+    const bannedFrontNames = new Set();
+    const bannedBackNames = new Set();
     try {
-      const ledger = loadRotationLedger();
-      let latest = null;
-      for (const k of Object.keys(ledger || {})) {
-        const it = ledger[k];
-        if (!it) continue;
-        if (!latest || (Number(it.t || 0) > Number(latest.t || 0))) latest = it;
+      for (const slotId of Object.keys(rotationLedger || {})) {
+        const e = rotationLedger[slotId];
+        if (!e) continue;
+        const slotName = slotNameById.get(String(slotId)) || String(slotId);
+        const t = Number(e.t || 0);
+        const fr = Array.isArray(e.front) ? e.front : [];
+        const bk = Array.isArray(e.back) ? e.back : [];
+        for (const n of fr) {
+          if (!n) continue;
+          bannedFrontNames.add(String(n));
+          if (!rotationDetail.has(String(n))) rotationDetail.set(String(n), { front: [], back: [] });
+          rotationDetail.get(String(n)).front.push({ slot: slotName, t });
+        }
+        for (const n of bk) {
+          if (!n) continue;
+          bannedBackNames.add(String(n));
+          if (!rotationDetail.has(String(n))) rotationDetail.set(String(n), { front: [], back: [] });
+          rotationDetail.get(String(n)).back.push({ slot: slotName, t });
+        }
       }
-      if (latest) {
-        prevFrontSet = new Set(Array.isArray(latest.front) ? latest.front.filter(Boolean) : []);
-        prevBackSet  = new Set(Array.isArray(latest.back)  ? latest.back.filter(Boolean)  : []);
+      // 최신순 정렬(안내문구용)
+      for (const v of rotationDetail.values()) {
+        v.front.sort((a,b)=> (b.t||0)-(a.t||0));
+        v.back.sort((a,b)=> (b.t||0)-(a.t||0));
       }
-    } catch {}
+    } catch(e) {}
 
-    const rotationConflict = (name, seatId) => {
-      if (!name) return false;
-      if (frOn && frontIdSet.has(seatId) && prevFrontSet.has(name)) return true;
-      if (bkOn && backIdSet.has(seatId)  && prevBackSet.has(name))  return true;
-      return false;
-    };
-
-    const rotationCost = (seatToName) => {
-      if (!(frOn || bkOn)) return 0;
-      let c = 0;
-      for (const id of activeSeatIds) {
-        const nm = seatToName[id];
-        if (!nm) continue;
-        if (rotationConflict(nm, id)) c += 1;
-      }
-      return c;
-    };
+    const frontRowIndex = boardAtTop ? 0 : (rows - 1);
+    const backRowIndex  = boardAtTop ? (rows - 1) : 0;
+    const frontSeatSet = new Set();
+    const backSeatSet = new Set();
+    for (let cc=0; cc<cols; cc++){
+      frontSeatSet.add(frontRowIndex*cols + cc);
+      backSeatSet.add(backRowIndex*cols + cc);
+    }
 
     const allowedForSeat = (name, seatId) => {
       const seat = getSeat(seatId);
       if (!seat || seat.void) return false;
+
+      // 로테이션 하드 제약(저장된 배치도 전체 기록 기준)
+      const nm = String(name || "");
+      if (frontSeatSet.has(seatId) && bannedFrontNames.has(nm)) return false;
+      if (backSeatSet.has(seatId) && bannedBackNames.has(nm)) return false;
+
       const req = seat.seatGender ?? "A";
       if (req === "A") return true;
-      const g = nameToGender.get(name) || "A";
+      const g = nameToGender.get(nm) || "A";
       return g === req || g === "A";
-    };
-
-    // 로테이션까지 포함한 엄격 조건(가능하면 반드시 지킴)
-    const allowedForSeatStrict = (name, seatId) => {
-      if (!allowedForSeat(name, seatId)) return false;
-      if (rotationConflict(name, seatId)) return false;
-      return true;
     };
 
     // --- (금지쌍 만족) 탐색 유틸 ---
@@ -3114,13 +3141,11 @@ function renderForbiddenGroupsFromTextarea() {
     };
 
     const totalCost = (seatToName) => {
-      // 로테이션 겹침은 '가능하면 0'이 되도록 최우선(하드에 가깝게) 페널티를 크게 줌
-      const r = rotationCost(seatToName);
       // 성별 불일치는 강하게, 금지쌍 위반은 그 다음, 수준 분산은 약하게
       const g = genderCost(seatToName);
       const f = forbiddenCost(seatToName);
       const l = levelBalanceCost(seatToName);
-      return r * 1000000 + g * 10000 + f * 100 + l * 10;
+      return g * 10000 + f * 100 + l * 10;
     };
 
 
@@ -3146,21 +3171,16 @@ function renderForbiddenGroupsFromTextarea() {
         const req = getSeat(id)?.seatGender ?? "A";
         let pickIndex = 0;
 
-        // 1) (가능하면) 성별 + 로테이션까지 만족하는 학생을 먼저 찾음
-        pickIndex = -1;
-        for (let k = 0; k < remaining.length; k++) {
-          if (allowedForSeatStrict(remaining[k], id)) { pickIndex = k; break; }
-        }
-
-        // 2) 정말 없으면(불가능) 성별만 만족하는 학생 허용
-        if (pickIndex === -1) {
+        if (req !== "A") {
+          pickIndex = -1;
           for (let k = 0; k < remaining.length; k++) {
-            if (allowedForSeat(remaining[k], id)) { pickIndex = k; break; }
+            if (allowedForSeat(remaining[k], id)) {
+              pickIndex = k;
+              break;
+            }
           }
+          if (pickIndex === -1) pickIndex = 0;
         }
-
-        // 3) 성별도 맞는 학생이 없으면(아주 예외) 그냥 아무나
-        if (pickIndex === -1) pickIndex = 0;
 
         const picked = remaining.splice(pickIndex, 1)[0];
         seatToName[id] = picked ?? null;
@@ -3252,13 +3272,48 @@ function renderForbiddenGroupsFromTextarea() {
     syncOptionEnables();
     computeViolations();
     renderGrid();
-    /* rotation 기록은 이제 '배치도 저장' 시에만 반영됩니다. */
 
-    // 로테이션(맨앞/맨뒤) 겹침 안내: 가능한 범위 내에서 강제 회피하되, 불가능하면 안내
-    const rotOverlap = rotationCost(bestGlobal);
-    if ((frOn || bkOn) && rotOverlap > 0) {
-      toast(`로테이션 조건을 모두 만족시키기 어려워요(지난 기록과 겹침 ${rotOverlap}명).`);
-    }
+    // 로테이션 위반 안내(불가피한 경우에만)
+    try {
+      const viol = [];
+      for (const s of seats) {
+        if (!s || s.void || !s.name) continue;
+        const nm = String(s.name);
+        if (frontSeatSet.has(s.id) && bannedFrontNames.has(nm)) viol.push({ name: nm, side: "앞줄" });
+        if (backSeatSet.has(s.id) && bannedBackNames.has(nm)) viol.push({ name: nm, side: "뒷줄" });
+      }
+      if (viol.length) {
+        const uniq = new Map();
+        for (const v of viol) {
+          const key = v.name + "|" + v.side;
+          if (!uniq.has(key)) uniq.set(key, v);
+        }
+        const list = Array.from(uniq.values());
+        const fmt = (t) => {
+          try {
+            if (!t) return "";
+            const d = new Date(t);
+            const y = d.getFullYear();
+            const m = String(d.getMonth()+1).padStart(2,"0");
+            const dd = String(d.getDate()).padStart(2,"0");
+            return `${y}-${m}-${dd}`;
+          } catch { return ""; }
+        };
+        const parts = [];
+        for (const v of list.slice(0, 4)) {
+          const det = rotationDetail.get(v.name);
+          const arr = v.side === "앞줄" ? (det?.front || []) : (det?.back || []);
+          const d0 = arr[0];
+          const when = d0 ? `${d0.slot}(${fmt(d0.t)})` : "";
+          parts.push(`${v.name}(${when} ${v.side})`);
+        }
+        const extra = list.length - parts.length;
+        const msg = `로테이션 조건을 모두 만족시키기 어려워요: ${parts.join(", ")}${extra>0?` 외 ${extra}명`: ""}`;
+        toast(msg);
+      }
+    } catch(e) {}
+
+    /* rotation 기록은 이제 '배치도 저장' 시에만 반영됩니다. */
 
     if (forbiddenPairs.length > 0 && bestGlobalForbidden > 0) {
       toast(`금지 조건을 모두 만족시키기 어려워요(남은 위반 ${bestGlobalForbidden}건).`);
@@ -3320,6 +3375,7 @@ function renderForbiddenGroupsFromTextarea() {
     if (!ok) return;
     pushUndo("clearAll");
     clearAll();
+    clearAutosaveSnapshot();
     toast("초기화되었습니다.");
   }); }
   if (restoreVoidsBtn) restoreVoidsBtn.addEventListener("click", () => { pushUndo("restoreVoids"); restoreVoids(); });
@@ -3690,12 +3746,6 @@ let _savingStudentsNow = false;
     computeViolations();
     renderGrid();
     /* rotation 기록은 이제 '배치도 저장' 시에만 반영됩니다. */
-
-    // 로테이션(맨앞/맨뒤) 겹침 안내: 가능한 범위 내에서 강제 회피하되, 불가능하면 안내
-    const rotOverlap = rotationCost(bestGlobal);
-    if ((frOn || bkOn) && rotOverlap > 0) {
-      toast(`로테이션 조건을 모두 만족시키기 어려워요(지난 기록과 겹침 ${rotOverlap}명).`);
-    }
     closeModal(incomingShareModal);
     clearShareParam();
     toast("공유 배치도를 적용했어요!");
@@ -3835,12 +3885,10 @@ let _savingStudentsNow = false;
         }
 
         ctx.fillStyle = "rgba(17,24,39,0.04)";
-        // Export에서는 '고정좌석/금지쌍 위반' 표시를 숨깁니다.
-        // (이름/남여 지정 테두리/모둠·좌석번호만 출력)
         ctx.strokeStyle = "rgba(17,24,39,0.35)";
         if (seat.seatGender === "M") ctx.strokeStyle = "rgba(59,130,246,0.85)";
         if (seat.seatGender === "F") ctx.strokeStyle = "rgba(239,68,68,0.85)";
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2;  
 
         roundRect(ctx, x, y, seatW, seatH, 14, true, true);
 
@@ -3852,6 +3900,18 @@ let _savingStudentsNow = false;
           ctx.fillText(String(seat.id + 1), x + 10, y + 8);
         }
 
+        // 좌상단 핀(고정 표시) - 고정인 경우만
+        if (seat.locked) {
+          ctx.fillStyle = "rgba(59,130,246,0.22)";
+          ctx.strokeStyle = "rgba(59,130,246,0.55)";
+          ctx.lineWidth = 1.5;
+          roundRect(ctx, x + 8, y + 8, 28, 20, 8, true, true);
+          ctx.fillStyle = "rgba(219,234,254,1)";
+          ctx.font = "900 12px system-ui";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("📌", x + 22, y + 18);
+        }
 
         // Export (image/print): render names in solid black for readability
         if (seat.name) {
@@ -4498,6 +4558,19 @@ function currentSnapshot() {
     updateOrientationButtonLabel();
     applyHintVisibility();
     openIncomingShareModalFromUrl();
+
+    // 페이지 이동/업데이트 후에도 작업이 유지되도록 임시 저장본을 우선 복원
+    const autosnap = loadAutosaveSnapshot();
+    if (autosnap) {
+      try {
+        applySnapshot(autosnap);
+        toast("작업을 복원했어요.");
+        return;
+      } catch (e) {
+        // 손상된 임시 저장본은 제거하고 기본값으로 시작
+        clearAutosaveSnapshot();
+      }
+    }
 
     layoutKind = "single";
     layoutParams.singleCols = 5;

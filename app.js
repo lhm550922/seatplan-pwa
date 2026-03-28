@@ -262,7 +262,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "1.6";
+  const APP_VERSION = "1.7";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -3182,7 +3182,11 @@ function renderForbiddenGroupsFromTextarea() {
     const forbiddenPairs = (useForbidden && !useForbidden.checked) ? [] : parseForbidden(forbiddenInput ? forbiddenInput.value : "");
 
 
-    // --- 로테이션(앞/뒤줄) 하드 회피: 저장된 배치도 전체 기록 기준 ---
+    // --- 로테이션(앞/뒤줄) 회피: 저장된 배치도 전체 기록 기준 ---
+    const rotOn = !!(useRotation && useRotation.checked);
+    const avoidFrontRotation = !!(rotOn && rotateFront && rotateFront.checked);
+    const avoidBackRotation = !!(rotOn && rotateBack && rotateBack.checked);
+
     const rotationLedger = loadRotationLedger();
     const slotIndexList = loadSlotIndex ? loadSlotIndex() : [];
     const slotNameById = new Map();
@@ -3201,13 +3205,13 @@ function renderForbiddenGroupsFromTextarea() {
         const bk = Array.isArray(e.back) ? e.back : [];
         for (const n of fr) {
           if (!n) continue;
-          bannedFrontNames.add(String(n));
+          if (avoidFrontRotation) bannedFrontNames.add(String(n));
           if (!rotationDetail.has(String(n))) rotationDetail.set(String(n), { front: [], back: [] });
           rotationDetail.get(String(n)).front.push({ slot: slotName, t });
         }
         for (const n of bk) {
           if (!n) continue;
-          bannedBackNames.add(String(n));
+          if (avoidBackRotation) bannedBackNames.add(String(n));
           if (!rotationDetail.has(String(n))) rotationDetail.set(String(n), { front: [], back: [] });
           rotationDetail.get(String(n)).back.push({ slot: slotName, t });
         }
@@ -3338,38 +3342,87 @@ function renderForbiddenGroupsFromTextarea() {
       return c;
     };
 
-    const totalCost = (seatToName) => {
-      // ✅ 로테이션 위반은 '하드 제약'에 가깝게 매우 큰 페널티
-      const r = rotationViolation(seatToName);
-      // 성별 불일치는 강하게, 금지쌍 위반은 그 다음, 수준 분산은 약하게
-      const g = genderCost(seatToName);
-      const f = forbiddenCost(seatToName);
-      const l = levelBalanceCost(seatToName);
-      return r * 1000000 + g * 10000 + f * 100 + l * 10;
+    const scoreOf = (seatToName) => ({
+      rotation: rotationViolation(seatToName),
+      gender: genderCost(seatToName),
+      forbidden: forbiddenCost(seatToName),
+      level: levelBalanceCost(seatToName),
+    });
+
+    const compareScore = (a, b) => {
+      if (!b) return -1;
+      if ((a.rotation || 0) !== (b.rotation || 0)) return (a.rotation || 0) - (b.rotation || 0);
+      if ((a.gender || 0) !== (b.gender || 0)) return (a.gender || 0) - (b.gender || 0);
+      if ((a.forbidden || 0) !== (b.forbidden || 0)) return (a.forbidden || 0) - (b.forbidden || 0);
+      if ((a.level || 0) !== (b.level || 0)) return (a.level || 0) - (b.level || 0);
+      return 0;
     };
 
+    const totalCost = (seatToName) => {
+      const s = scoreOf(seatToName);
+      return s.rotation * 1000000 + s.gender * 10000 + s.forbidden * 100 + s.level * 10;
+    };
+
+    const buildMatchingSeed = () => {
+      if (pool.length !== freeSeatIds.length) return null;
+
+      const seatToName = Array.from({ length: seatCount() }, () => null);
+      for (const s of seats) {
+        if (s.void) continue;
+        if (s.locked && s.name) seatToName[s.id] = s.name;
+      }
+
+      const edges = new Map();
+      for (const id of freeSeatIds) {
+        const candidates = shuffleArr(pool.filter((nm) => allowedForSeat(nm, id)));
+        edges.set(id, candidates);
+      }
+      for (const id of freeSeatIds) {
+        if (!edges.get(id) || edges.get(id).length === 0) return null;
+      }
+
+      const orderedSeats = shuffleArr(freeSeatIds).sort((a, b) => (edges.get(a).length - edges.get(b).length) || (Math.random() - 0.5));
+      const matchNameToSeat = new Map();
+
+      const dfs = (seatId, seen) => {
+        const candidates = edges.get(seatId) || [];
+        for (const nm of candidates) {
+          if (seen.has(nm)) continue;
+          seen.add(nm);
+          const prevSeat = matchNameToSeat.get(nm);
+          if (prevSeat == null || dfs(prevSeat, seen)) {
+            matchNameToSeat.set(nm, seatId);
+            return true;
+          }
+        }
+        return false;
+      };
+
+      for (const seatId of orderedSeats) {
+        if (!dfs(seatId, new Set())) return null;
+      }
+
+      for (const [nm, sid] of matchNameToSeat.entries()) seatToName[sid] = nm;
+      return seatToName;
+    };
 
     const makeInitialAssignment = () => {
-      const seatToName = Array.from({ length: seatCount() }, () => null);
+      const matched = buildMatchingSeed();
+      if (matched) return matched;
 
-      // locked seed
+      const seatToName = Array.from({ length: seatCount() }, () => null);
       for (const s of seats) {
         if (s.void) continue;
         if (s.locked && s.name) seatToName[s.id] = s.name;
       }
 
       let remaining = shuffleArr(pool);
-
-      // seat order shuffle helps
       const seatOrder = shuffleArr(freeSeatIds);
       for (const id of seatOrder) {
         if (remaining.length === 0) {
           seatToName[id] = null;
           continue;
         }
-
-        // ✅ 회피 제약(로테이션/성별좌석 등)은 좌석 성별 옵션과 무관하게 항상 적용
-        // (기존에는 req!=="A"일 때만 검사하여, 로테이션이 거의 반영되지 않는 문제가 있었음)
         let pickIndex = -1;
         for (let k = 0; k < remaining.length; k++) {
           if (allowedForSeat(remaining[k], id)) {
@@ -3377,85 +3430,82 @@ function renderForbiddenGroupsFromTextarea() {
             break;
           }
         }
-        if (pickIndex == -1) pickIndex = 0;
-
+        if (pickIndex === -1) pickIndex = 0;
         const picked = remaining.splice(pickIndex, 1)[0];
         seatToName[id] = picked ?? null;
       }
-
       return seatToName;
     };
 
     const improveBySwaps = (seed) => {
-      // 랜덤 스왑 힐클라임(빠르고 안정적)
       let cur = seed.slice();
-      let curCost = totalCost(cur);
+      let curScore = scoreOf(cur);
       let best = cur.slice();
-      let bestCost = curCost;
+      let bestScore = { ...curScore };
 
-      const needOptimize = (forbiddenPairs.length > 0) || (activeSeatIds.some(id => (getSeat(id)?.seatGender ?? 'A') !== 'A')) || (balanceLevels && balanceLevels.checked);
-      const steps = needOptimize ? 1100 : 0;
+      const needOptimize = (forbiddenPairs.length > 0) || (balanceLevels && balanceLevels.checked) || (activeSeatIds.some(id => (getSeat(id)?.seatGender ?? 'A') !== 'A')) || rotOn;
+      const steps = needOptimize ? (rotOn ? 2600 : 1400) : 0;
+
       for (let step = 0; step < steps; step++) {
-        if (curCost === 0) break;
+        if (bestScore.rotation === 0 && bestScore.gender === 0 && bestScore.forbidden === 0 && bestScore.level === 0) break;
 
         const a = freeSeatIds[Math.floor(Math.random() * freeSeatIds.length)];
         const b = freeSeatIds[Math.floor(Math.random() * freeSeatIds.length)];
         if (a === b) continue;
 
-        // swap
+        const nameA = cur[a];
+        const nameB = cur[b];
+        if (nameA && !allowedForSeat(nameA, b)) continue;
+        if (nameB && !allowedForSeat(nameB, a)) continue;
+
         const tmp = cur[a];
         cur[a] = cur[b];
         cur[b] = tmp;
 
-        const newCost = totalCost(cur);
-        const accept = newCost <= curCost || Math.random() < 0.02;
+        const newScore = scoreOf(cur);
+        const better = compareScore(newScore, curScore) <= 0;
+        const accept = better || Math.random() < 0.015;
 
         if (accept) {
-          curCost = newCost;
-          if (newCost < bestCost) {
-            bestCost = newCost;
+          curScore = newScore;
+          if (compareScore(newScore, bestScore) < 0) {
+            bestScore = { ...newScore };
             best = cur.slice();
-            if (bestCost === 0) break;
           }
         } else {
-          // revert
           const tmp2 = cur[a];
           cur[a] = cur[b];
           cur[b] = tmp2;
         }
       }
 
-      return { best, bestCost };
+      return { best, bestScore };
     };
 
     // --- 메인 탐색 ---
     let bestGlobal = null;
-    let bestGlobalTotal = Infinity;
-    let bestGlobalForbidden = Infinity;
-    let bestGlobalGender = Infinity;
-    let bestGlobalLevel = Infinity;
+    let bestGlobalScore = null;
 
-    const attempts = (forbiddenPairs.length > 0) || (balanceLevels && balanceLevels.checked) || (activeSeatIds.some(id => (getSeat(id)?.seatGender ?? 'A') !== 'A')) ? 60 : 1;
+    const hardMatchExists = !!buildMatchingSeed();
+    const needManyAttempts = rotOn || (forbiddenPairs.length > 0) || (balanceLevels && balanceLevels.checked) || (activeSeatIds.some(id => (getSeat(id)?.seatGender ?? 'A') !== 'A'));
+    const attempts = hardMatchExists ? (rotOn ? 180 : 90) : (needManyAttempts ? 90 : 1);
+
     for (let t = 0; t < attempts; t++) {
       const seed = makeInitialAssignment();
-      const { best, bestCost } = improveBySwaps(seed);
+      const { best, bestScore } = improveBySwaps(seed);
 
-      const fCost = forbiddenCost(best);
-      const gCost = genderCost(best);
-      const lCost = levelBalanceCost(best);
-
-      if (bestCost < bestGlobalTotal) {
-        bestGlobalTotal = bestCost;
+      if (compareScore(bestScore, bestGlobalScore) < 0) {
         bestGlobal = best;
-        bestGlobalForbidden = fCost;
-        bestGlobalGender = gCost;
-        bestGlobalLevel = lCost;
-        if (bestGlobalTotal === 0) break;
+        bestGlobalScore = { ...bestScore };
+        if (bestGlobalScore.rotation === 0 && bestGlobalScore.gender === 0 && bestGlobalScore.forbidden === 0 && bestGlobalScore.level === 0) break;
       }
     }
 
     // 적용
     if (!bestGlobal) bestGlobal = makeInitialAssignment();
+    if (!bestGlobalScore) bestGlobalScore = scoreOf(bestGlobal);
+    const bestGlobalForbidden = bestGlobalScore.forbidden;
+    const bestGlobalGender = bestGlobalScore.gender;
 
     for (const id of freeSeatIds) {
       const seat = getSeat(id);

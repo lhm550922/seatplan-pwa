@@ -204,8 +204,8 @@
   let undoStack = [];
   let redoStack = [];
   let historyApplying = false;
-  const APP_VERSION = "1.1";
-const UNDO_MAX = 30;
+  const APP_VERSION = "1.2";
+  const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
     try{
@@ -233,6 +233,7 @@ const UNDO_MAX = 30;
 
   function doUndo() {
     if (!undoStack.length) { toast("되돌릴 내용이 없어요."); return; }
+
     // Save current state for redo
     try {
       const cur = JSON.stringify(snapshotForHistory());
@@ -240,17 +241,11 @@ const UNDO_MAX = 30;
       if (redoStack.length > UNDO_MAX) redoStack.shift();
     } catch (e) {}
 
-    let raw = undoStack.pop();
+    const raw = undoStack.pop();
     try {
       const snap = JSON.parse(raw);
       historyApplying = true;
-      applySnapshot(snap);
-      uiMode = "none";
-      selectedSeatId = null;
-      moveFromSeatId = null;
-      closeGroupMenu();
-      computeViolations();
-      renderGrid();
+      applySnapshot(snap); // applySnapshot 내부에서 render/검증까지 처리
       historyApplying = false;
       toast("한 단계 이전으로 되돌렸어요.");
     } catch (e) {
@@ -262,6 +257,7 @@ const UNDO_MAX = 30;
 
   function doRedo() {
     if (!redoStack.length) { toast("다시 실행할 내용이 없어요."); return; }
+
     // Save current state for undo
     try {
       const cur = JSON.stringify(snapshotForHistory());
@@ -269,17 +265,11 @@ const UNDO_MAX = 30;
       if (undoStack.length > UNDO_MAX) undoStack.shift();
     } catch (e) {}
 
-    let raw = redoStack.pop();
+    const raw = redoStack.pop();
     try {
       const snap = JSON.parse(raw);
       historyApplying = true;
       applySnapshot(snap);
-      uiMode = "none";
-      selectedSeatId = null;
-      moveFromSeatId = null;
-      closeGroupMenu();
-      computeViolations();
-      renderGrid();
       historyApplying = false;
       toast("한 단계 뒤로 다시 되돌렸어요.");
     } catch (e) {

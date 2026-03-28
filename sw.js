@@ -1,15 +1,15 @@
-/* SeatPlan PWA - Service Worker (v1.1)
+/* SeatPlan PWA - Service Worker (v1.2)
    교체용 sw.js (GitHub Pages 포함)
 
    ✅ 변경점
-   1) 캐시 이름을 버전별로 변경: seatplan-pwa-v97
+   1) 캐시 이름을 버전별로 변경: seatplan-pwa-v1_2
    2) install에서 precache를 강제 갱신: Request(..., { cache: 'reload' })
    3) 새 SW가 즉시 잡히도록: skipWaiting + clients.claim
    4) 첫 화면(네비게이션)은 network-first로 가져와 오래된 index.html 노출을 방지
       (네트워크 실패 시 캐시된 index.html로 fallback)
 */
 
-const CACHE_NAME = "seatplan-pwa-v97"
+const CACHE_NAME = "seatplan-pwa-v1_2"
 
 // 프로젝트 루트 기준(상대경로) - GitHub Pages의 서브경로 배포에도 안전
 const ASSETS = [

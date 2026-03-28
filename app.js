@@ -203,7 +203,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "1.2";
+  const APP_VERSION = "1.0";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -1687,7 +1687,9 @@ for (let i = 0; i < orderedIds.length; i += size) {
       gridEl.style.gridTemplateColumns = `repeat(${cols}, ${seatW}px)`;
     }
 
-    // 내보내기(이미지/인쇄)에서는 고정좌석/금지쌍 위반 표시를 숨깁니다.
+    const vioSet = new Set();
+    for (const v of violations) { vioSet.add(v.aId); vioSet.add(v.bId); }
+
     forbidColorMap = buildForbiddenGroupColorMap();
 
     gridEl.innerHTML = "";
@@ -2974,60 +2976,49 @@ function renderForbiddenGroupsFromTextarea() {
 
     // 인접 금지(한 줄에 여러 명이면 모든 조합 금지)
     const forbiddenPairs = (useForbidden && !useForbidden.checked) ? [] : parseForbidden(forbiddenInput ? forbiddenInput.value : "");
-    // --- 로테이션(앞줄/뒷줄) 회피: 가장 최근 저장된 배치도의 기록을 기반으로 '이번 자동 배치'에서 최대한 피합니다.
-    // * 저장된 기록이 없으면 회피하지 않습니다.
-    // * 회피가 불가능한 경우(제약 충돌)에는 최소 겹침만 허용하고 안내 토스트를 띄웁니다.
-    let lastFrontSet = new Set();
-    let lastBackSet = new Set();
+
+    // ===== 로테이션(맨앞/맨뒤) 하드 제약 =====
+    const rotOn = (useRotation ? !!useRotation.checked : true);
+    const frOn = rotOn && (rotateFront ? !!rotateFront.checked : false);
+    const bkOn = rotOn && (rotateBack ? !!rotateBack.checked : false);
+
+    const frontIdSet = new Set(frOn ? frontRowIds() : []);
+    const backIdSet  = new Set(bkOn ? backRowIds() : []);
+
+    // 가장 최근(저장된 배치도 중 최신) 로테이션 기록 1개를 사용
+    let prevFrontSet = new Set();
+    let prevBackSet  = new Set();
     try {
-      if (useRotation && useRotation.checked && (rotateFront?.checked || rotateBack?.checked)) {
-        const ledger = loadRotationLedger();
-        let latest = null;
-        for (const sid of Object.keys(ledger || {})) {
-          const e = ledger[sid];
-          if (!e) continue;
-          const t = Number(e.t || 0);
-          if (!latest || t > Number(latest.t || 0)) latest = e;
-        }
-        if (latest) {
-          if (Array.isArray(latest.front)) lastFrontSet = new Set(latest.front.map(String));
-          if (Array.isArray(latest.back))  lastBackSet  = new Set(latest.back.map(String));
-        }
+      const ledger = loadRotationLedger();
+      let latest = null;
+      for (const k of Object.keys(ledger || {})) {
+        const it = ledger[k];
+        if (!it) continue;
+        if (!latest || (Number(it.t || 0) > Number(latest.t || 0))) latest = it;
+      }
+      if (latest) {
+        prevFrontSet = new Set(Array.isArray(latest.front) ? latest.front.filter(Boolean) : []);
+        prevBackSet  = new Set(Array.isArray(latest.back)  ? latest.back.filter(Boolean)  : []);
       }
     } catch {}
 
-    const frontIdsNow = frontRowIds();
-    const backIdsNow  = backRowIds();
-    const isRotationForbidden = (name, seatId) => {
-      if (!(useRotation && useRotation.checked)) return false;
+    const rotationConflict = (name, seatId) => {
       if (!name) return false;
-      if (rotateFront && rotateFront.checked && lastFrontSet.size > 0 && frontIdsNow.includes(seatId)) {
-        return lastFrontSet.has(String(name));
-      }
-      if (rotateBack && rotateBack.checked && lastBackSet.size > 0 && backIdsNow.includes(seatId)) {
-        return lastBackSet.has(String(name));
-      }
+      if (frOn && frontIdSet.has(seatId) && prevFrontSet.has(name)) return true;
+      if (bkOn && backIdSet.has(seatId)  && prevBackSet.has(name))  return true;
       return false;
     };
 
     const rotationCost = (seatToName) => {
-      if (!(useRotation && useRotation.checked)) return 0;
+      if (!(frOn || bkOn)) return 0;
       let c = 0;
-      if (rotateFront && rotateFront.checked && lastFrontSet.size > 0) {
-        for (const id of frontIdsNow) {
-          const nm = seatToName[id];
-          if (nm && lastFrontSet.has(String(nm))) c += 1;
-        }
-      }
-      if (rotateBack && rotateBack.checked && lastBackSet.size > 0) {
-        for (const id of backIdsNow) {
-          const nm = seatToName[id];
-          if (nm && lastBackSet.has(String(nm))) c += 1;
-        }
+      for (const id of activeSeatIds) {
+        const nm = seatToName[id];
+        if (!nm) continue;
+        if (rotationConflict(nm, id)) c += 1;
       }
       return c;
     };
-
 
     const allowedForSeat = (name, seatId) => {
       const seat = getSeat(seatId);
@@ -3036,6 +3027,13 @@ function renderForbiddenGroupsFromTextarea() {
       if (req === "A") return true;
       const g = nameToGender.get(name) || "A";
       return g === req || g === "A";
+    };
+
+    // 로테이션까지 포함한 엄격 조건(가능하면 반드시 지킴)
+    const allowedForSeatStrict = (name, seatId) => {
+      if (!allowedForSeat(name, seatId)) return false;
+      if (rotationConflict(name, seatId)) return false;
+      return true;
     };
 
     // --- (금지쌍 만족) 탐색 유틸 ---
@@ -3116,12 +3114,13 @@ function renderForbiddenGroupsFromTextarea() {
     };
 
     const totalCost = (seatToName) => {
-      // 우선순위: 성별 지정(가장 강하게) > 로테이션(앞/뒤줄 회피) > 금지쌍 > 모둠 수준 분산
-      const g = genderCost(seatToName);
+      // 로테이션 겹침은 '가능하면 0'이 되도록 최우선(하드에 가깝게) 페널티를 크게 줌
       const r = rotationCost(seatToName);
+      // 성별 불일치는 강하게, 금지쌍 위반은 그 다음, 수준 분산은 약하게
+      const g = genderCost(seatToName);
       const f = forbiddenCost(seatToName);
       const l = levelBalanceCost(seatToName);
-      return g * 10000000 + r * 100000 + f * 100 + l * 10;
+      return r * 1000000 + g * 10000 + f * 100 + l * 10;
     };
 
 
@@ -3147,33 +3146,21 @@ function renderForbiddenGroupsFromTextarea() {
         const req = getSeat(id)?.seatGender ?? "A";
         let pickIndex = 0;
 
-        if (req !== "A") {
-          // 1) 성별 조건 + 로테이션 회피(가능하면)
-          pickIndex = -1;
-          for (let k = 0; k < remaining.length; k++) {
-            if (allowedForSeat(remaining[k], id) && !isRotationForbidden(remaining[k], id)) {
-              pickIndex = k;
-              break;
-            }
-          }
-          // 2) 성별 조건만(로테이션은 불가피할 때 허용)
-          if (pickIndex === -1) {
-            for (let k = 0; k < remaining.length; k++) {
-              if (allowedForSeat(remaining[k], id)) {
-                pickIndex = k;
-                break;
-              }
-            }
-          }
-          if (pickIndex === -1) pickIndex = 0;
-        } else {
-          // 성별 무관 좌석도 로테이션은 가능하면 회피
-          pickIndex = -1;
-          for (let k = 0; k < remaining.length; k++) {
-            if (!isRotationForbidden(remaining[k], id)) { pickIndex = k; break; }
-          }
-          if (pickIndex === -1) pickIndex = 0;
+        // 1) (가능하면) 성별 + 로테이션까지 만족하는 학생을 먼저 찾음
+        pickIndex = -1;
+        for (let k = 0; k < remaining.length; k++) {
+          if (allowedForSeatStrict(remaining[k], id)) { pickIndex = k; break; }
         }
+
+        // 2) 정말 없으면(불가능) 성별만 만족하는 학생 허용
+        if (pickIndex === -1) {
+          for (let k = 0; k < remaining.length; k++) {
+            if (allowedForSeat(remaining[k], id)) { pickIndex = k; break; }
+          }
+        }
+
+        // 3) 성별도 맞는 학생이 없으면(아주 예외) 그냥 아무나
+        if (pickIndex === -1) pickIndex = 0;
 
         const picked = remaining.splice(pickIndex, 1)[0];
         seatToName[id] = picked ?? null;
@@ -3267,6 +3254,12 @@ function renderForbiddenGroupsFromTextarea() {
     renderGrid();
     /* rotation 기록은 이제 '배치도 저장' 시에만 반영됩니다. */
 
+    // 로테이션(맨앞/맨뒤) 겹침 안내: 가능한 범위 내에서 강제 회피하되, 불가능하면 안내
+    const rotOverlap = rotationCost(bestGlobal);
+    if ((frOn || bkOn) && rotOverlap > 0) {
+      toast(`로테이션 조건을 모두 만족시키기 어려워요(지난 기록과 겹침 ${rotOverlap}명).`);
+    }
+
     if (forbiddenPairs.length > 0 && bestGlobalForbidden > 0) {
       toast(`금지 조건을 모두 만족시키기 어려워요(남은 위반 ${bestGlobalForbidden}건).`);
     }
@@ -3292,14 +3285,6 @@ function renderForbiddenGroupsFromTextarea() {
 
       toast(`성별 지정 조건을 모두 만족시키기 어려워요(불일치 ${bestGlobalGender}명).${reason ? " " + reason : ""}`);
     }
-    // 로테이션 겹침 안내(가능한 한 피하지만, 제약 충돌로 불가피한 경우)
-    try {
-      const rotOverlap = rotationCost(bestGlobal);
-      if (rotOverlap > 0 && (rotateFront?.checked || rotateBack?.checked) && (lastFrontSet.size > 0 || lastBackSet.size > 0)) {
-        toast(`로테이션 조건을 모두 만족시키기 어려워요(지난 기록과 겹침 ${rotOverlap}명).`);
-      }
-    } catch {}
-
     log("자동 배치 완료 ✅");
   }
 
@@ -3705,6 +3690,12 @@ let _savingStudentsNow = false;
     computeViolations();
     renderGrid();
     /* rotation 기록은 이제 '배치도 저장' 시에만 반영됩니다. */
+
+    // 로테이션(맨앞/맨뒤) 겹침 안내: 가능한 범위 내에서 강제 회피하되, 불가능하면 안내
+    const rotOverlap = rotationCost(bestGlobal);
+    if ((frOn || bkOn) && rotOverlap > 0) {
+      toast(`로테이션 조건을 모두 만족시키기 어려워요(지난 기록과 겹침 ${rotOverlap}명).`);
+    }
     closeModal(incomingShareModal);
     clearShareParam();
     toast("공유 배치도를 적용했어요!");
@@ -3844,11 +3835,12 @@ let _savingStudentsNow = false;
         }
 
         ctx.fillStyle = "rgba(17,24,39,0.04)";
+        // Export에서는 '고정좌석/금지쌍 위반' 표시를 숨깁니다.
+        // (이름/남여 지정 테두리/모둠·좌석번호만 출력)
         ctx.strokeStyle = "rgba(17,24,39,0.35)";
         if (seat.seatGender === "M") ctx.strokeStyle = "rgba(59,130,246,0.85)";
         if (seat.seatGender === "F") ctx.strokeStyle = "rgba(239,68,68,0.85)";
         ctx.lineWidth = 2;
-
 
         roundRect(ctx, x, y, seatW, seatH, 14, true, true);
 

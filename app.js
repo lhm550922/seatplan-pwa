@@ -67,6 +67,7 @@
 
   // 임시 작업 자동 복원(페이지 이동 후 돌아와도 유지)
   const AUTOSAVE_KEY = "seatplan_autosave_v1_4";
+  const AUTOSAVE_RESTORE_SESSION_KEY = "seatplan_allow_autosave_restore_v1";
   function isBrowserReloadNavigation() {
     try {
       const navEntries = (typeof performance !== "undefined" && performance.getEntriesByType)
@@ -109,6 +110,15 @@
   }
   function clearAutosaveSnapshot() {
     try { localStorage.removeItem(AUTOSAVE_KEY); } catch (e) {}
+  }
+  function markAutosaveRestoreAllowed() {
+    try { sessionStorage.setItem(AUTOSAVE_RESTORE_SESSION_KEY, "1"); } catch (e) {}
+  }
+  function clearAutosaveRestoreAllowed() {
+    try { sessionStorage.removeItem(AUTOSAVE_RESTORE_SESSION_KEY); } catch (e) {}
+  }
+  function canRestoreAutosaveThisSession() {
+    try { return sessionStorage.getItem(AUTOSAVE_RESTORE_SESSION_KEY) === "1"; } catch (e) { return false; }
   }
 
   // autosave는 너무 자주 쓰면 부담이 되므로 간단히 디바운스 처리
@@ -262,7 +272,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "1.7";
+  const APP_VERSION = "1.8";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -2363,10 +2373,47 @@ function renderForbiddenGroupsFromTextarea() {
   }
 
   // ===== Actions =====
+  function promptFixedSeatName(seat) {
+    if (!seat || seat.void) return;
+
+    const currentName = String(seat.name || "").trim();
+    const input = prompt(
+      "이 좌석에 고정할 학생 이름을 입력하세요.\n(빈칸으로 두면 고정이 해제돼요.)",
+      currentName
+    );
+    if (input === null) return;
+
+    const name = String(input || "").trim();
+
+    if (!name) {
+      if (seat.locked) {
+        seat.locked = false;
+        renderGrid();
+        log(`좌석 고정 해제: 좌석 ${seat.id + 1}`);
+      }
+      return;
+    }
+
+    const dup = seats.some((s) => s && s.id !== seat.id && !s.void && String(s.name || "").trim() === name);
+    if (dup) {
+      toast("이미 다른 좌석에 같은 이름이 있어요. 이름을 확인해 주세요.");
+      return;
+    }
+
+    seat.name = name;
+    seat.locked = true;
+    renderGrid();
+    log(`좌석 고정(직접입력): ${seat.name} (좌석 ${seat.id + 1})`);
+  }
+
   function togglePin(seat) {
     if (!seat || seat.void) return;
 
-    // 해제는 언제든 가능
+    if (uiMode === "pin") {
+      promptFixedSeatName(seat);
+      return;
+    }
+
     if (seat.locked) {
       seat.locked = false;
       renderGrid();
@@ -2374,25 +2421,11 @@ function renderForbiddenGroupsFromTextarea() {
       return;
     }
 
-    // 고정은 학생이 있는 자리만 (v0.79: 빈 좌석이면 이름 입력 후 고정 허용)
     if (!seat.name) {
-      const input = prompt("이 좌석에 고정할 학생 이름을 입력하세요.");
-      const name = (input || "").trim();
-      if (!name) return;
-    
-      // 이미 다른 좌석에 같은 이름이 있으면 중복 방지
-      const dup = seats.some((s) => s && s.id !== seat.id && s.name === name && !s.void);
-      if (dup) {
-        toast("이미 다른 좌석에 같은 이름이 있어요. 이름을 확인해 주세요.");
-        return;
-      }
-    
-      seat.name = name;
-      seat.locked = true;
-      renderGrid();
-      log(`좌석 고정(직접입력): ${seat.name} (좌석 ${seat.id + 1})`);
+      promptFixedSeatName(seat);
       return;
     }
+
     seat.locked = true;
     renderGrid();
     log(`좌석 고정: ${seat.name} (좌석 ${seat.id + 1})`);
@@ -2829,7 +2862,16 @@ function renderForbiddenGroupsFromTextarea() {
             return;
           }
 
-          // 그 외 액션은 기존 click 핸들러로 넘김(현재는 터치에서 click 무시하므로 실행 안 됨)
+          // 그 외 액션은 기존 click 핸들러로 넘김(현재는 touch에서 click 무시하므로 실행 안 됨)
+        }
+
+        if (uiMode === "pin" && seat && !seat.void) {
+          promptFixedSeatName(seat);
+          resetTouchDragVisual();
+          _suppressNextClickUntil = Date.now() + 650;
+          e.preventDefault();
+          e.stopPropagation();
+          return;
         }
 
         // 일반 탭: 선택/해제(아이콘 표시)
@@ -2861,6 +2903,10 @@ function renderForbiddenGroupsFromTextarea() {
       if (!seat) return;
 
       const actionEl = e.target.closest("[data-action]");
+      if (!actionEl && uiMode === "pin" && !seat.void) {
+        promptFixedSeatName(seat);
+        return;
+      }
       if (actionEl) {
         const act = actionEl.dataset.action;
 
@@ -4819,14 +4865,17 @@ function currentSnapshot() {
       const links = document.querySelectorAll('footer a');
       links.forEach(a => {
         a.addEventListener('click', () => {
-          try { saveAutosaveSnapshot(); } catch (e) {}
+          try {
+            saveAutosaveSnapshot();
+            markAutosaveRestoreAllowed();
+          } catch (e) {}
         });
       });
     } catch (e) {}
 
-    // 페이지 이동/업데이트 후에도 작업이 유지되도록 임시 저장본을 우선 복원
-    // 단, 브라우저 새로고침(reload)에서는 예전처럼 초기 상태로 시작하도록 복원하지 않음
-    if (!isBrowserReloadNavigation()) {
+    // 페이지 이동 후 같은 탭으로 돌아온 경우에만 작업 복원
+    // 브라우저 새로고침(reload)이나 탭/창을 닫았다가 다시 연 경우에는 초기 상태로 시작
+    if (!isBrowserReloadNavigation() && canRestoreAutosaveThisSession()) {
       const autosnap = loadAutosaveSnapshot();
       if (autosnap) {
         try {
@@ -4836,8 +4885,14 @@ function currentSnapshot() {
         } catch (e) {
           // 손상된 임시 저장본은 제거하고 기본값으로 시작
           clearAutosaveSnapshot();
+        } finally {
+          clearAutosaveRestoreAllowed();
         }
+      } else {
+        clearAutosaveRestoreAllowed();
       }
+    } else {
+      clearAutosaveRestoreAllowed();
     }
 
     layoutKind = "single";

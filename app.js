@@ -68,17 +68,34 @@
   // 임시 작업 자동 복원(페이지 이동 후 돌아와도 유지)
   const AUTOSAVE_KEY = "seatplan_autosave_v1_4";
   const AUTOSAVE_RESTORE_SESSION_KEY = "seatplan_allow_autosave_restore_v1";
-  function isBrowserReloadNavigation() {
+  function getNavigationType() {
     try {
       const navEntries = (typeof performance !== "undefined" && performance.getEntriesByType)
         ? performance.getEntriesByType("navigation")
         : [];
-      if (navEntries && navEntries[0] && navEntries[0].type === "reload") return true;
+      if (navEntries && navEntries[0] && navEntries[0].type) return navEntries[0].type;
       if (typeof performance !== "undefined" && performance.navigation) {
-        return performance.navigation.type === 1;
+        const t = performance.navigation.type;
+        if (t === 1) return "reload";
+        if (t === 2) return "back_forward";
       }
     } catch (e) {}
-    return false;
+    return "navigate";
+  }
+  function isBrowserReloadNavigation() {
+    return getNavigationType() === "reload";
+  }
+  function cameFromInternalAuxPage() {
+    try {
+      const ref = document.referrer ? new URL(document.referrer) : null;
+      const here = location;
+      if (!ref) return false;
+      if (ref.origin !== here.origin) return false;
+      const refPath = (ref.pathname || "").split("/").pop() || "index.html";
+      const herePath = (here.pathname || "").split("/").pop() || "index.html";
+      if (refPath === herePath) return false;
+      return true;
+    } catch (e) { return false; }
   }
   function saveAutosaveSnapshot() {
     try {
@@ -4874,8 +4891,15 @@ function currentSnapshot() {
     } catch (e) {}
 
     // 페이지 이동 후 같은 탭으로 돌아온 경우에만 작업 복원
-    // 브라우저 새로고침(reload)이나 탭/창을 닫았다가 다시 연 경우에는 초기 상태로 시작
-    if (!isBrowserReloadNavigation() && canRestoreAutosaveThisSession()) {
+    // - footer 링크 페이지에서 다시 index로 돌아온 경우: 복원
+    // - 브라우저 새로고침(reload): 복원 안 함
+    // - 창/탭을 닫았다가 다시 연 경우: 복원 안 함
+    const navType = getNavigationType();
+    const shouldRestoreAutosave = !isBrowserReloadNavigation() && (
+      (canRestoreAutosaveThisSession() && (navType === "back_forward" || cameFromInternalAuxPage())) ||
+      cameFromInternalAuxPage()
+    );
+    if (shouldRestoreAutosave) {
       const autosnap = loadAutosaveSnapshot();
       if (autosnap) {
         try {

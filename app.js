@@ -64,6 +64,7 @@
 
   // 학생 명단 영구 보존(v0.92 patch): "학생 입력 > 저장"을 누른 명단을 로컬에 저장해 업데이트/새로고침 후에도 복원
   const LS_STUDENTS_KEY = "seatplan_students_v1";
+  let isDemoStudentList = false;
 
   // 임시 작업 자동 복원(페이지 이동 후 돌아와도 유지)
   const AUTOSAVE_KEY = "seatplan_autosave_v1_4";
@@ -159,6 +160,7 @@
       const data = JSON.parse(raw);
       if(data && typeof data.text === "string" && data.text.trim()){
         studentsInput.value = data.text;
+        isDemoStudentList = false;
       }
     }catch(e){
       // ignore (private mode / storage blocked)
@@ -289,7 +291,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "1.9";
+  const APP_VERSION = "2.0";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -3211,7 +3213,7 @@ function renderForbiddenGroupsFromTextarea() {
       // - 사용자가 [저장]을 눌렀을 때 저장되는 것이 기본이지만,
       //   자동 배치까지 진행했다면 최신 입력을 보존하는 편이 안전(업데이트/새로고침 대비)
       try {
-        if (studentsInput) {
+        if (studentsInput && !isDemoStudentList) {
           const text = studentsInput.value || "";
           if (text.trim()) {
             localStorage.setItem(LS_STUDENTS_KEY, JSON.stringify({ text, savedAt: Date.now(), schema: 1 }));
@@ -3806,8 +3808,10 @@ let _savingStudentsNow = false;
         const text = (studentsInput && typeof studentsInput.value === "string") ? studentsInput.value : "";
         if (text.trim()) {
           localStorage.setItem(LS_STUDENTS_KEY, JSON.stringify({ text, savedAt: Date.now() }));
+          isDemoStudentList = false;
         } else {
           localStorage.removeItem(LS_STUDENTS_KEY);
+          isDemoStudentList = false;
         }
       } catch (e) {
         // ignore
@@ -3871,6 +3875,7 @@ let _savingStudentsNow = false;
       studentsTbody && studentsSetVisibility();
       // 숨김 텍스트도 초기화(기존 로직 호환)
       if (studentsInput) studentsInput.value = "";
+      isDemoStudentList = false;
       // 저장은 사용자가 [저장]을 눌렀을 때 확정
       toast("학생 명단이 모두 지워졌어요. 저장을 누르면 반영됩니다.");
     });
@@ -3933,6 +3938,7 @@ let _savingStudentsNow = false;
     ];
     if (studentsInput) {
       studentsInput.value = demoNames.join("\n");
+      isDemoStudentList = true;
       try { normalizeStudentsInput(); } catch {}
       try { studentsTextToTable(); } catch {}
     }

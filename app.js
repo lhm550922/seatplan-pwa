@@ -3922,30 +3922,7 @@ let _savingStudentsNow = false;
 
   if (openGuideBtn) openGuideBtn.addEventListener("click", () => { window.location.href = "./guide.html"; });
 
-  if (demoBtn) demoBtn.addEventListener("click", () => {
-    try {
-      pushUndo("demo");
-    } catch {}
-    // 1) 기본 레이아웃(예: 6x5=30자리) 생성
-    applyLayout("single", { singleCols: 6, singleRows: 5 });
 
-    // 2) 샘플 학생(24명) 입력 + 자동 배치
-    const demoNames = [
-      "김하늘","이준","박서연","최민준","정지우","한예린",
-      "윤서준","강민서","오지훈","임수아","신도윤","조은우",
-      "장하린","송지안","배현우","문서윤","권도하","백지민",
-      "서지후","홍예나","유하준","나은서","전민호","고서아"
-    ];
-    if (studentsInput) {
-      studentsInput.value = demoNames.join("\n");
-      isDemoStudentList = true;
-      try { normalizeStudentsInput(); } catch {}
-      try { studentsTextToTable(); } catch {}
-    }
-    // 바로 자동 배치
-    autoFill();
-    log("샘플 학급 불러오기");
-  });
 
   // ===== Share UI (inside 저장/불러오기) =====
   let lastShareSnap = null;

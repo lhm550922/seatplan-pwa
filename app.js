@@ -289,7 +289,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "1.8";
+  const APP_VERSION = "1.9";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -2423,10 +2423,16 @@ function renderForbiddenGroupsFromTextarea() {
     log(`좌석 고정(직접입력): ${seat.name} (좌석 ${seat.id + 1})`);
   }
 
-  function togglePin(seat) {
+  function togglePin(seat, source = "icon") {
     if (!seat || seat.void) return;
 
     if (uiMode === "pin") {
+      if (source === "icon" && seat.locked) {
+        seat.locked = false;
+        renderGrid();
+        log(`좌석 고정 해제: 좌석 ${seat.id + 1}`);
+        return;
+      }
       promptFixedSeatName(seat);
       return;
     }
@@ -2871,7 +2877,7 @@ function renderForbiddenGroupsFromTextarea() {
           }
 
           if (act === "pinToggle") {
-            if (seat) togglePin(seat);
+            if (seat) togglePin(seat, "icon");
             resetTouchDragVisual();
             _suppressNextClickUntil = Date.now() + 650;
             e.preventDefault();
@@ -2942,7 +2948,7 @@ function renderForbiddenGroupsFromTextarea() {
 
         // 고정핀 (모드 상관없이: 고정된 핀은 항상 클릭으로 해제 가능)
         if (act === "pinToggle") {
-          togglePin(seat);
+          togglePin(seat, "icon");
           return;
         }
 

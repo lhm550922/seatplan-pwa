@@ -294,7 +294,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "2.13";
+  const APP_VERSION = "2.15";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -2133,11 +2133,11 @@ for (let i = 0; i < orderedIds.length; i += size) {
         for (const s of seats) {
           if (!s || s.void || !s.name) continue;
           const usedSeats = oldSeatMap.get(String(s.name));
-          if (!usedSeats || !usedSeats.has(Number(s.id))) continue;
+          if (!usedSeats || !usedSeats.has(Number(s.id) + 1)) continue;
           oldSeatCount += 1;
-          const d0 = (oldSeatDetail.get(String(s.name)) || []).find(x => Number(x.seatId) === Number(s.id)) || (oldSeatDetail.get(String(s.name)) || [])[0];
+          const d0 = (oldSeatDetail.get(String(s.name)) || []).find(x => Number(x.seatNo) === Number(s.id) + 1) || (oldSeatDetail.get(String(s.name)) || [])[0];
           const when = d0 ? `${d0.slot}` : "기록 있음";
-          oldSeatLines.push(`- ${s.name}(좌석 ${s.id + 1}, 이전: ${when})`);
+          oldSeatLines.push(`- ${s.name}(좌석 ${s.id + 1}, 이전 같은 번호: ${when})`);
         }
       }
       if (layoutKind === "pair" && avoidOldPartner && avoidOldPartner.checked) {
@@ -3546,7 +3546,7 @@ function renderForbiddenGroupsFromTextarea() {
         const nm = seatToName[id];
         if (!nm) continue;
         const usedSeats = oldSeatMap.get(String(nm));
-        if (usedSeats && usedSeats.has(Number(id))) c += 1;
+        if (usedSeats && usedSeats.has(Number(id) + 1)) c += 1;
       }
       return c;
     };
@@ -3935,7 +3935,7 @@ function renderForbiddenGroupsFromTextarea() {
           if (!nm) continue;
           const usedSeats = oldSeatMap.get(String(nm));
           if (!usedSeats || !usedSeats.has(Number(id))) continue;
-          const d0 = (oldSeatDetail.get(String(nm)) || []).find(x => Number(x.seatId) === Number(id)) || (oldSeatDetail.get(String(nm)) || [])[0];
+          const d0 = (oldSeatDetail.get(String(nm)) || []).find(x => Number(x.seatNo) === Number(id) + 1) || (oldSeatDetail.get(String(nm)) || [])[0];
           const when = d0 ? `${d0.slot}` : "기록 있음";
           lines.push(`${nm}(좌석 ${Number(id) + 1}, ${when})`);
         }
@@ -4664,7 +4664,10 @@ let _savingStudentsNow = false;
       oldPartnerDetail: new Map(),
     };
 
-    const currentSig = currentLayoutSignature();
+    // 예전 자리 회피는 저장된 "전체 배치도" 기준으로,
+    // 현재 학생이 과거에 앉았던 "좌석 번호(= seat.id + 1)"를 다시 앉는지로 판단한다.
+    // 복잡한 배치에서도 동일한 좌석 번호 기준으로 일관되게 비교되도록
+    // 레이아웃 시그니처 일치 여부로 필터링하지 않는다.
     const list = loadSlotIndex();
     for (const slot of list) {
       const id = String(slot?.id || "");
@@ -4676,16 +4679,15 @@ let _savingStudentsNow = false;
         const slotName = String(slot?.name || id);
         const t = Number(snap?.savedAt || Date.now());
 
-        if (snapshotLayoutSignature(snap) === currentSig) {
-          for (const seat of (Array.isArray(snap?.seats) ? snap.seats : [])) {
-            if (!seat || seat.void || !seat.name) continue;
-            const nm = String(seat.name);
-            const sid = Number(seat.id);
-            if (!out.oldSeatMap.has(nm)) out.oldSeatMap.set(nm, new Set());
-            out.oldSeatMap.get(nm).add(sid);
-            if (!out.oldSeatDetail.has(nm)) out.oldSeatDetail.set(nm, []);
-            out.oldSeatDetail.get(nm).push({ seatId: sid, slot: slotName, t });
-          }
+        for (const seat of (Array.isArray(snap?.seats) ? snap.seats : [])) {
+          if (!seat || seat.void || !seat.name) continue;
+          const nm = String(seat.name);
+          const seatNo = Number(seat.id) + 1;
+          if (!Number.isFinite(seatNo) || seatNo <= 0) continue;
+          if (!out.oldSeatMap.has(nm)) out.oldSeatMap.set(nm, new Set());
+          out.oldSeatMap.get(nm).add(seatNo);
+          if (!out.oldSeatDetail.has(nm)) out.oldSeatDetail.set(nm, []);
+          out.oldSeatDetail.get(nm).push({ seatNo, slot: slotName, t });
         }
 
         const snapKind = snap?.layout?.layoutKind || snap?.seatType || "single";

@@ -16,7 +16,7 @@
   <header class="header">
     <div class="headerTop">
       <div class="headerBrand">
-        <h1>자리배치 PWA <span style="opacity:.65;font-weight:900">v2.0</span></h1>
+        <h1>자리배치 PWA <span style="opacity:.65;font-weight:900">v2.1</span></h1>
         <p class="sub">🧑‍🏫 담임교사를 위한 자리배치 도구</p>
       </div>
       <nav class="topNav" aria-label="사이트 메뉴">
@@ -93,6 +93,7 @@
                 <label class="toggle"><input id="showGroups" type="checkbox"> 모둠 번호 표시</label>
                 <label class="toggle"><input id="showSeatNo" type="checkbox" checked> 좌석 번호 표시</label>
                 <label class="toggle"><input id="showGender" type="checkbox"> 좌석 성별 표시</label>
+                <label class="toggle"><input id="showForbiddenDots" type="checkbox"> 금지쌍 표시</label>
               </div>
             </div>
           </div>
@@ -172,21 +173,12 @@
           <div class="accBody">
             <div class="row">
               <div class="field">
-                <label>열(가로)</label>
-                <select id="colsSingle">
-                  <option>1</option><option>2</option><option>3</option><option>4</option><option selected>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option>
-                </select>
+                <label>열(가로, 최대 20)</label>
+                <input id="colsSingle" type="number" min="1" max="20" step="1" value="5" inputmode="numeric">
               </div>
               <div class="field">
-                <label>행(세로)</label>
-                <select id="rowsSingle">
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-              <option value="5">5</option>
-              <option value="6" selected>6</option>
-            </select>
+                <label>행(세로, 최대 20)</label>
+                <input id="rowsSingle" type="number" min="1" max="20" step="1" value="6" inputmode="numeric">
               </div>
             </div>
           </div>

@@ -200,6 +200,7 @@
   const showSeatNo = $("showSeatNo");
   const showGroups = $("showGroups");
   const showGender = $("showGender");
+  const showForbiddenDots = $("showForbiddenDots");
 
   const rotateFront = $("rotateFront");
   const rotateBack = $("rotateBack");
@@ -291,7 +292,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "2.0";
+  const APP_VERSION = "2.1";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -851,7 +852,7 @@ function centerToast(msg) {
       ["좌석", `${seatCount}개`],
       ["통로", `${voidCount}개`],
       ["학생 입력", `${studentCount}명(대략)`],
-      ["표시", `${(snap.ui?.showSeatNo ? "번호 " : "")}${(snap.ui?.showGroups ? "모둠 " : "")}${(snap.ui?.showGender ? "성별" : "")}`.trim() || "없음"],
+      ["표시", `${(snap.ui?.showSeatNo ? "번호 " : "")}${(snap.ui?.showGroups ? "모둠 " : "")}${(snap.ui?.showGender ? "성별 " : "")}${(snap.ui?.showForbiddenDots ? "금지쌍" : "")}`.trim() || "없음"],
     ];
 
     hostEl.innerHTML = rows.map(([k,v]) =>
@@ -1430,8 +1431,9 @@ for (let i = 0; i < orderedIds.length; i += size) {
     };
 
     if (kind === "single") {
-      const pCols = Number(colsSingleSel.value);
-      const pRows = Number(rowsSingleSel.value);
+      sanitizeSingleLayoutInputs();
+      const pCols = clamp(Number(colsSingleSel.value), 1, 20);
+      const pRows = clamp(Number(rowsSingleSel.value), 1, 20);
       wrap.style.gridTemplateColumns = `repeat(${pCols}, 10px)`;
       for (let i = 0; i < pCols * pRows; i++) wrap.appendChild(cell(true, false, false));
       layoutPreviewEl.appendChild(wrap);
@@ -1509,12 +1511,26 @@ for (let i = 0; i < orderedIds.length; i += size) {
     drawMiniPreview(layoutKindSel.value);
   }
 
+  function sanitizeSingleLayoutInputs() {
+    if (colsSingleSel) {
+      const rawCols = Number(colsSingleSel.value);
+      const nextCols = clamp(Number.isFinite(rawCols) ? rawCols : layoutParams.singleCols, 1, 20);
+      colsSingleSel.value = String(nextCols);
+    }
+    if (rowsSingleSel) {
+      const rawRows = Number(rowsSingleSel.value);
+      const nextRows = clamp(Number.isFinite(rawRows) ? rawRows : layoutParams.singleRows, 1, 20);
+      rowsSingleSel.value = String(nextRows);
+    }
+  }
+
   function syncLayoutModalUIFromState() {
     if (!layoutKindSel) return;
 
     layoutKindSel.value = layoutKind;
     colsSingleSel.value = String(layoutParams.singleCols);
     rowsSingleSel.value = String(layoutParams.singleRows);
+    sanitizeSingleLayoutInputs();
     pairColsSel.value = String(layoutParams.pairCols);
     rowsPairSel.value = String(layoutParams.pairRows);
     groupSizeSel.value = String(layoutParams.groupSize);
@@ -1526,6 +1542,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
 
   function onLayoutKindChanged() {
     if (!layoutKindSel) return;
+    sanitizeSingleLayoutInputs();
     setAccordionVisibility(layoutKindSel.value);
     updateLayoutPreview();
   }
@@ -1543,9 +1560,9 @@ for (let i = 0; i < orderedIds.length; i += size) {
     }
 
     if (kind === "single") {
-      // 1인 책상 배열: 열 최대 12까지 지원(가로 스크롤로 대응)
-      cols = clamp(Number(params.singleCols), 1, 12);
-      rows = clamp(Number(params.singleRows), 1, 8);
+      // 1인 책상 배열: 열/행 직접 입력(최대 20), 좌석은 축소 대신 스크롤로 대응
+      cols = clamp(Number(params.singleCols), 1, 20);
+      rows = clamp(Number(params.singleRows), 1, 20);
       if (seatTypeSel) seatTypeSel.value = "single";
       buildSeatModel();
     }
@@ -1932,7 +1949,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
       name.style.fontSize = `${Math.max(11, f)}px`;
 
       // 금지쌍 그룹 표시: 이름 옆 색 점(복수 가능)
-      if (forbidColorMap && forbidColorMap.has(seat.name)) {
+      if (showForbiddenDots && showForbiddenDots.checked && forbidColorMap && forbidColorMap.has(seat.name)) {
         const info = forbidColorMap.get(seat.name);
         const colors = (info && info.colors && info.colors.length) ? info.colors : [];
 
@@ -3704,6 +3721,7 @@ function renderForbiddenGroupsFromTextarea() {
   if (showSeatNo) showSeatNo.addEventListener("change", renderGrid);
   if (showGroups) showGroups.addEventListener("change", () => { closeGroupMenu(); renderGrid(); });
   if (showGender) showGender.addEventListener("change", renderGrid);
+  if (showForbiddenDots) showForbiddenDots.addEventListener("change", renderGrid);
 
   if (groupMode) groupMode.addEventListener("change", () => {
     // manual size input toggle
@@ -4057,15 +4075,24 @@ let _savingStudentsNow = false;
 
   if (layoutKindSel) layoutKindSel.addEventListener("change", () => onLayoutKindChanged());
   [colsSingleSel, rowsSingleSel, pairColsSel, rowsPairSel, groupSizeSel, groupCountSel].forEach((el) => {
-    if (el) el.addEventListener("change", updateLayoutPreview);
+    if (!el) return;
+    el.addEventListener("change", () => {
+      sanitizeSingleLayoutInputs();
+      updateLayoutPreview();
+    });
+    el.addEventListener("input", () => {
+      sanitizeSingleLayoutInputs();
+      updateLayoutPreview();
+    });
   });
 
   if (applyLayoutBtn) applyLayoutBtn.addEventListener("click", () => {
     const kind = layoutKindSel ? layoutKindSel.value : "single";
 
     if (kind === "single") {
-      layoutParams.singleCols = Number(colsSingleSel.value);
-      layoutParams.singleRows = Number(rowsSingleSel.value);
+      sanitizeSingleLayoutInputs();
+      layoutParams.singleCols = clamp(Number(colsSingleSel.value), 1, 20);
+      layoutParams.singleRows = clamp(Number(rowsSingleSel.value), 1, 20);
     } else if (kind === "pair") {
       layoutParams.pairCols = Number(pairColsSel.value);
       layoutParams.pairRows = Number(rowsPairSel.value);
@@ -4647,6 +4674,7 @@ function updateRotationLedgerForSlot(slotId) {
         showSeatNo: !!(showSeatNo && showSeatNo.checked),
         showGroups: !!(showGroups && showGroups.checked),
         showGender: !!(showGender && showGender.checked),
+        showForbiddenDots: !!(showForbiddenDots && showForbiddenDots.checked),
         includeDiagonal: !!(includeDiagonal && includeDiagonal.checked),
         includeSameGroup: !!(includeSameGroup && includeSameGroup.checked),
         groupMode: groupMode ? groupMode.value : "none",
@@ -4675,6 +4703,7 @@ function currentSnapshot() {
         showSeatNo: !!(showSeatNo && showSeatNo.checked),
         showGroups: !!(showGroups && showGroups.checked),
         showGender: !!(showGender && showGender.checked),
+        showForbiddenDots: !!(showForbiddenDots && showForbiddenDots.checked),
         includeDiagonal: !!(includeDiagonal && includeDiagonal.checked),
         includeSameGroup: !!(includeSameGroup && includeSameGroup.checked),
         groupMode: groupMode ? groupMode.value : "none",
@@ -4717,6 +4746,7 @@ function currentSnapshot() {
     if (showSeatNo) showSeatNo.checked = !!ui.showSeatNo;
     if (showGroups) showGroups.checked = !!ui.showGroups;
     if (showGender) showGender.checked = !!ui.showGender;
+    if (showForbiddenDots) showForbiddenDots.checked = !!ui.showForbiddenDots;
     if (includeDiagonal) includeDiagonal.checked = !!ui.includeDiagonal;
     if (includeSameGroup) includeSameGroup.checked = !!ui.includeSameGroup;
     if (groupMode) groupMode.value = ui.groupMode ?? "none";

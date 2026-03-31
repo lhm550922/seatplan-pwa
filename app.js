@@ -2245,8 +2245,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
     if (!hasForbidden && !hasRotation && !hasOldPartner && !hasOldSeat) {
       if (debugOut.length) {
         violationsBar.style.display = "block";
-        violationsBar.textContent = debugOut.join("
-");
+        violationsBar.textContent = debugOut.join("\n");
       } else {
         violationsBar.style.display = "none";
         violationsBar.textContent = "";

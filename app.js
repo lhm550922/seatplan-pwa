@@ -206,6 +206,8 @@
   const rotateBack = $("rotateBack");
 
   const useRotation = $("useRotation");
+  const avoidOldSeat = $("avoidOldSeat");
+  const avoidOldPartner = $("avoidOldPartner");
   const resetHistoryBtn = $("resetHistoryBtn");
   const viewHistoryBtn = $("viewHistoryBtn");
 
@@ -292,7 +294,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "2.1";
+  const APP_VERSION = "2.12";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -2119,14 +2121,58 @@ for (let i = 0; i < orderedIds.length; i += size) {
       // ignore
     }
 
+    const historicalData = buildHistoricalAvoidanceData();
+    const oldSeatLines = [];
+    const oldPartnerLines = [];
+    let oldSeatCount = 0;
+    let oldPartnerCount = 0;
+    try {
+      if (avoidOldSeat && avoidOldSeat.checked) {
+        const oldSeatMap = historicalData.oldSeatMap;
+        const oldSeatDetail = historicalData.oldSeatDetail;
+        for (const s of seats) {
+          if (!s || s.void || !s.name) continue;
+          const usedSeats = oldSeatMap.get(String(s.name));
+          if (!usedSeats || !usedSeats.has(Number(s.id))) continue;
+          oldSeatCount += 1;
+          const d0 = (oldSeatDetail.get(String(s.name)) || []).find(x => Number(x.seatId) === Number(s.id)) || (oldSeatDetail.get(String(s.name)) || [])[0];
+          const when = d0 ? `${d0.slot}` : "기록 있음";
+          oldSeatLines.push(`- ${s.name}(좌석 ${s.id + 1}, 이전: ${when})`);
+        }
+      }
+      if (layoutKind === "pair" && avoidOldPartner && avoidOldPartner.checked) {
+        const oldPartnerSet = historicalData.oldPartnerSet;
+        const oldPartnerDetail = historicalData.oldPartnerDetail;
+        const byId = new Map(seats.filter(s => s && !s.void).map(s => [Number(s.id), s]));
+        const seen = new Set();
+        for (const s of byId.values()) {
+          if (!s || !s.name) continue;
+          const mate = byId.get(Number(getPairSeatMateId(s.id, cols)));
+          if (!mate || !mate.name) continue;
+          const key = pairKey(String(s.name), String(mate.name));
+          if (seen.has(key) || !oldPartnerSet.has(key)) continue;
+          seen.add(key);
+          oldPartnerCount += 1;
+          const d0 = (oldPartnerDetail.get(key) || [])[0];
+          const when = d0 ? `${d0.slot}` : "기록 있음";
+          oldPartnerLines.push(`- ${s.name} ↔ ${mate.name}(이전 짝꿍: ${when})`);
+        }
+      }
+    } catch(e) {}
+
     if (useForbidden && !useForbidden.checked) {
-      // forbidden off — still show rotation warnings if any
+      // forbidden off — still show history warnings if any
       if (violationsBar) {
-        if (rotationCount > 0) {
-          violationsBar.textContent = `로테이션 중복 ${rotationCount}명:\n` + rotationLines.join("\n");
+        const out = [];
+        if (rotationCount > 0) { out.push(`로테이션 중복 ${rotationCount}명:`); out.push(...rotationLines); }
+        if (oldPartnerCount > 0) { if (out.length) out.push(""); out.push(`예전 짝꿍 중복 ${oldPartnerCount}건:`); out.push(...oldPartnerLines); }
+        if (oldSeatCount > 0) { if (out.length) out.push(""); out.push(`예전 자리 중복 ${oldSeatCount}명:`); out.push(...oldSeatLines); }
+        if (out.length) {
+          violationsBar.textContent = out.join("\n");
           violationsBar.style.display = "block";
         } else {
-          violationsBar.style.display = "none"; violationsBar.textContent = "";
+          violationsBar.style.display = "none";
+          violationsBar.textContent = "";
         }
       }
       return;
@@ -2138,11 +2184,16 @@ for (let i = 0; i < orderedIds.length; i += size) {
 
     if (forbid.size === 0) {
       if (violationsBar) {
-        if (rotationCount > 0) {
-          violationsBar.textContent = `로테이션 중복 ${rotationCount}명:\n` + rotationLines.join("\n");
+        const out = [];
+        if (rotationCount > 0) { out.push(`로테이션 중복 ${rotationCount}명:`); out.push(...rotationLines); }
+        if (oldPartnerCount > 0) { if (out.length) out.push(""); out.push(`예전 짝꿍 중복 ${oldPartnerCount}건:`); out.push(...oldPartnerLines); }
+        if (oldSeatCount > 0) { if (out.length) out.push(""); out.push(`예전 자리 중복 ${oldSeatCount}명:`); out.push(...oldSeatLines); }
+        if (out.length) {
+          violationsBar.textContent = out.join("\n");
           violationsBar.style.display = "block";
         } else {
-          violationsBar.style.display = "none"; violationsBar.textContent = "";
+          violationsBar.style.display = "none";
+          violationsBar.textContent = "";
         }
       }
       return;
@@ -2172,8 +2223,10 @@ for (let i = 0; i < orderedIds.length; i += size) {
     if (!violationsBar) return;
     const hasForbidden = (violations.length > 0);
     const hasRotation = (rotationCount > 0);
+    const hasOldPartner = (oldPartnerCount > 0);
+    const hasOldSeat = (oldSeatCount > 0);
 
-    if (!hasForbidden && !hasRotation) {
+    if (!hasForbidden && !hasRotation && !hasOldPartner && !hasOldSeat) {
       violationsBar.style.display = "none";
       violationsBar.textContent = "";
       return;
@@ -2191,9 +2244,19 @@ for (let i = 0; i < orderedIds.length; i += size) {
       out.push(...lines);
     }
     if (hasRotation) {
-      if (hasForbidden) out.push("");
+      if (out.length) out.push("");
       out.push(`로테이션 중복 ${rotationCount}명:`);
       out.push(...rotationLines);
+    }
+    if (hasOldPartner) {
+      if (out.length) out.push("");
+      out.push(`예전 짝꿍 중복 ${oldPartnerCount}건:`);
+      out.push(...oldPartnerLines);
+    }
+    if (hasOldSeat) {
+      if (out.length) out.push("");
+      out.push(`예전 자리 중복 ${oldSeatCount}명:`);
+      out.push(...oldSeatLines);
     }
     violationsBar.textContent = out.join("\n");
     violationsBar.style.display = "block";
@@ -2244,6 +2307,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
     const rotOn = (!useRotation) || useRotation.checked;
     if (rotateFront) rotateFront.disabled = !rotOn;
     if (rotateBack) rotateBack.disabled = !rotOn;
+    if (avoidOldPartner) avoidOldPartner.disabled = (layoutKind !== "pair");
 
     const balanceEl = document.getElementById("balanceLevels");
     const groupModeEl = document.getElementById("groupMode");
@@ -3325,6 +3389,14 @@ function renderForbiddenGroupsFromTextarea() {
       backSeatSet.add(backRowIndex*cols + cc);
     }
 
+    const historicalData = buildHistoricalAvoidanceData();
+    const avoidOldSeatOn = !!(avoidOldSeat && avoidOldSeat.checked);
+    const avoidOldPartnerOn = !!(layoutKind === "pair" && avoidOldPartner && avoidOldPartner.checked);
+    const oldSeatMap = historicalData.oldSeatMap;
+    const oldSeatDetail = historicalData.oldSeatDetail;
+    const oldPartnerSet = historicalData.oldPartnerSet;
+    const oldPartnerDetail = historicalData.oldPartnerDetail;
+
     const allowedForSeat = (name, seatId) => {
       const seat = getSeat(seatId);
       if (!seat || seat.void) return false;
@@ -3430,8 +3502,40 @@ function renderForbiddenGroupsFromTextarea() {
       return c;
     };
 
+    const oldSeatViolation = (seatToName) => {
+      if (!avoidOldSeatOn) return 0;
+      let c = 0;
+      for (const id of activeSeatIds) {
+        const nm = seatToName[id];
+        if (!nm) continue;
+        const usedSeats = oldSeatMap.get(String(nm));
+        if (usedSeats && usedSeats.has(Number(id))) c += 1;
+      }
+      return c;
+    };
+
+    const oldPartnerViolation = (seatToName) => {
+      if (!avoidOldPartnerOn) return 0;
+      let c = 0;
+      const seen = new Set();
+      for (const id of activeSeatIds) {
+        const nm = seatToName[id];
+        if (!nm) continue;
+        const mateId = getPairSeatMateId(id, cols);
+        const mateName = seatToName[mateId];
+        if (!mateName) continue;
+        const key = pairKey(String(nm), String(mateName));
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (oldPartnerSet.has(key)) c += 1;
+      }
+      return c;
+    };
+
     const scoreOf = (seatToName) => ({
       rotation: rotationViolation(seatToName),
+      oldPartner: oldPartnerViolation(seatToName),
+      oldSeat: oldSeatViolation(seatToName),
       gender: genderCost(seatToName),
       forbidden: forbiddenCost(seatToName),
       level: levelBalanceCost(seatToName),
@@ -3440,6 +3544,8 @@ function renderForbiddenGroupsFromTextarea() {
     const compareScore = (a, b) => {
       if (!b) return -1;
       if ((a.rotation || 0) !== (b.rotation || 0)) return (a.rotation || 0) - (b.rotation || 0);
+      if ((a.oldPartner || 0) !== (b.oldPartner || 0)) return (a.oldPartner || 0) - (b.oldPartner || 0);
+      if ((a.oldSeat || 0) !== (b.oldSeat || 0)) return (a.oldSeat || 0) - (b.oldSeat || 0);
       if ((a.gender || 0) !== (b.gender || 0)) return (a.gender || 0) - (b.gender || 0);
       if ((a.forbidden || 0) !== (b.forbidden || 0)) return (a.forbidden || 0) - (b.forbidden || 0);
       if ((a.level || 0) !== (b.level || 0)) return (a.level || 0) - (b.level || 0);
@@ -3448,7 +3554,7 @@ function renderForbiddenGroupsFromTextarea() {
 
     const totalCost = (seatToName) => {
       const s = scoreOf(seatToName);
-      return s.rotation * 1000000 + s.gender * 10000 + s.forbidden * 100 + s.level * 10;
+      return s.rotation * 100000000 + s.oldPartner * 1000000 + s.oldSeat * 10000 + s.gender * 1000 + s.forbidden * 100 + s.level * 10;
     };
 
     const buildMatchingSeed = () => {
@@ -3531,11 +3637,11 @@ function renderForbiddenGroupsFromTextarea() {
       let best = cur.slice();
       let bestScore = { ...curScore };
 
-      const needOptimize = (forbiddenPairs.length > 0) || (balanceLevels && balanceLevels.checked) || (activeSeatIds.some(id => (getSeat(id)?.seatGender ?? 'A') !== 'A')) || rotOn;
-      const steps = needOptimize ? (rotOn ? 2600 : 1400) : 0;
+      const needOptimize = (forbiddenPairs.length > 0) || (balanceLevels && balanceLevels.checked) || (activeSeatIds.some(id => (getSeat(id)?.seatGender ?? 'A') !== 'A')) || rotOn || avoidOldSeatOn || avoidOldPartnerOn;
+      const steps = needOptimize ? ((rotOn || avoidOldSeatOn || avoidOldPartnerOn) ? 4200 : 1400) : 0;
 
       for (let step = 0; step < steps; step++) {
-        if (bestScore.rotation === 0 && bestScore.gender === 0 && bestScore.forbidden === 0 && bestScore.level === 0) break;
+        if (bestScore.rotation === 0 && bestScore.oldPartner === 0 && bestScore.oldSeat === 0 && bestScore.gender === 0 && bestScore.forbidden === 0 && bestScore.level === 0) break;
 
         const a = freeSeatIds[Math.floor(Math.random() * freeSeatIds.length)];
         const b = freeSeatIds[Math.floor(Math.random() * freeSeatIds.length)];
@@ -3575,8 +3681,8 @@ function renderForbiddenGroupsFromTextarea() {
     let bestGlobalScore = null;
 
     const hardMatchExists = !!buildMatchingSeed();
-    const needManyAttempts = rotOn || (forbiddenPairs.length > 0) || (balanceLevels && balanceLevels.checked) || (activeSeatIds.some(id => (getSeat(id)?.seatGender ?? 'A') !== 'A'));
-    const attempts = hardMatchExists ? (rotOn ? 180 : 90) : (needManyAttempts ? 90 : 1);
+    const needManyAttempts = rotOn || avoidOldSeatOn || avoidOldPartnerOn || (forbiddenPairs.length > 0) || (balanceLevels && balanceLevels.checked) || (activeSeatIds.some(id => (getSeat(id)?.seatGender ?? 'A') !== 'A'));
+    const attempts = hardMatchExists ? ((rotOn || avoidOldSeatOn || avoidOldPartnerOn) ? 260 : 90) : (needManyAttempts ? 140 : 1);
 
     for (let t = 0; t < attempts; t++) {
       const seed = makeInitialAssignment();
@@ -3585,7 +3691,7 @@ function renderForbiddenGroupsFromTextarea() {
       if (compareScore(bestScore, bestGlobalScore) < 0) {
         bestGlobal = best;
         bestGlobalScore = { ...bestScore };
-        if (bestGlobalScore.rotation === 0 && bestGlobalScore.gender === 0 && bestGlobalScore.forbidden === 0 && bestGlobalScore.level === 0) break;
+        if (bestGlobalScore.rotation === 0 && bestGlobalScore.oldPartner === 0 && bestGlobalScore.oldSeat === 0 && bestGlobalScore.gender === 0 && bestGlobalScore.forbidden === 0 && bestGlobalScore.level === 0) break;
       }
     }
 
@@ -3594,6 +3700,8 @@ function renderForbiddenGroupsFromTextarea() {
     if (!bestGlobalScore) bestGlobalScore = scoreOf(bestGlobal);
     const bestGlobalForbidden = bestGlobalScore.forbidden;
     const bestGlobalGender = bestGlobalScore.gender;
+    const bestGlobalOldPartner = bestGlobalScore.oldPartner || 0;
+    const bestGlobalOldSeat = bestGlobalScore.oldSeat || 0;
 
     for (const id of freeSeatIds) {
       const seat = getSeat(id);
@@ -3645,6 +3753,40 @@ function renderForbiddenGroupsFromTextarea() {
         const extra = list.length - parts.length;
         const msg = `로테이션 조건을 모두 만족시키기 어려워요: ${parts.join(", ")}${extra>0?` 외 ${extra}명`: ""}`;
         toast(msg);
+      }
+    } catch(e) {}
+
+    try {
+      if (bestGlobalOldPartner > 0 && avoidOldPartnerOn) {
+        const seen = new Set();
+        const lines = [];
+        for (const id of activeSeatIds) {
+          const nm = bestGlobal[id];
+          if (!nm) continue;
+          const mateId = getPairSeatMateId(id, cols);
+          const mateName = bestGlobal[mateId];
+          if (!mateName) continue;
+          const key = pairKey(String(nm), String(mateName));
+          if (seen.has(key) || !oldPartnerSet.has(key)) continue;
+          seen.add(key);
+          const d0 = (oldPartnerDetail.get(key) || [])[0];
+          const when = d0 ? `${d0.slot}` : "기록 있음";
+          lines.push(`${nm}↔${mateName}(${when})`);
+        }
+        if (lines.length) toast(`예전 짝꿍 회피가 어려운 조합이 있어요: ${lines.slice(0,4).join(", ")}${lines.length > 4 ? ` 외 ${lines.length - 4}건` : ""}`);
+      }
+      if (bestGlobalOldSeat > 0 && avoidOldSeatOn) {
+        const lines = [];
+        for (const id of activeSeatIds) {
+          const nm = bestGlobal[id];
+          if (!nm) continue;
+          const usedSeats = oldSeatMap.get(String(nm));
+          if (!usedSeats || !usedSeats.has(Number(id))) continue;
+          const d0 = (oldSeatDetail.get(String(nm)) || []).find(x => Number(x.seatId) === Number(id)) || (oldSeatDetail.get(String(nm)) || [])[0];
+          const when = d0 ? `${d0.slot}` : "기록 있음";
+          lines.push(`${nm}(좌석 ${Number(id) + 1}, ${when})`);
+        }
+        if (lines.length) toast(`예전 자리 회피가 어려운 학생이 있어요: ${lines.slice(0,4).join(", ")}${lines.length > 4 ? ` 외 ${lines.length - 4}명` : ""}`);
       }
     } catch(e) {}
 
@@ -4336,6 +4478,90 @@ let _savingStudentsNow = false;
     }
   }
 
+  function currentLayoutSignature() {
+    const voidIds = seats.filter(s => s && s.void).map(s => Number(s.id)).sort((a,b)=>a-b).join(",");
+    return JSON.stringify({ layoutKind, cols, rows, boardAtTop: !!boardAtTop, voidIds });
+  }
+
+  function snapshotLayoutSignature(snap) {
+    const snapSeats = Array.isArray(snap?.seats) ? snap.seats : [];
+    const voidIds = snapSeats.filter(s => s && s.void).map(s => Number(s.id)).sort((a,b)=>a-b).join(",");
+    return JSON.stringify({
+      layoutKind: snap?.layout?.layoutKind || snap?.seatType || "single",
+      cols: Number(snap?.cols ?? 0),
+      rows: Number(snap?.rows ?? 0),
+      boardAtTop: !!snap?.boardAtTop,
+      voidIds,
+    });
+  }
+
+  function getPairSeatMateId(seatId, totalCols) {
+    const c = Number(totalCols || cols);
+    const id = Number(seatId);
+    if (!Number.isFinite(id) || c <= 0) return null;
+    const col = id % c;
+    return (col % 2 === 0) ? (id + 1) : (id - 1);
+  }
+
+  function buildHistoricalAvoidanceData() {
+    const out = {
+      oldSeatMap: new Map(),
+      oldSeatDetail: new Map(),
+      oldPartnerSet: new Set(),
+      oldPartnerDetail: new Map(),
+    };
+
+    const currentSig = currentLayoutSignature();
+    const list = loadSlotIndex();
+    for (const slot of list) {
+      const id = String(slot?.id || "");
+      if (!id) continue;
+      const raw = localStorage.getItem(slotKey(id));
+      if (!raw) continue;
+      try {
+        const snap = JSON.parse(raw);
+        const slotName = String(slot?.name || id);
+        const t = Number(snap?.savedAt || Date.now());
+
+        if (snapshotLayoutSignature(snap) === currentSig) {
+          for (const seat of (Array.isArray(snap?.seats) ? snap.seats : [])) {
+            if (!seat || seat.void || !seat.name) continue;
+            const nm = String(seat.name);
+            const sid = Number(seat.id);
+            if (!out.oldSeatMap.has(nm)) out.oldSeatMap.set(nm, new Set());
+            out.oldSeatMap.get(nm).add(sid);
+            if (!out.oldSeatDetail.has(nm)) out.oldSeatDetail.set(nm, []);
+            out.oldSeatDetail.get(nm).push({ seatId: sid, slot: slotName, t });
+          }
+        }
+
+        const snapKind = snap?.layout?.layoutKind || snap?.seatType || "single";
+        if (snapKind === "pair") {
+          const snapCols = Number(snap?.cols ?? 0);
+          const byId = new Map((Array.isArray(snap?.seats) ? snap.seats : []).map(seat => [Number(seat.id), seat]));
+          for (const seat of byId.values()) {
+            if (!seat || seat.void || !seat.name) continue;
+            const mateId = getPairSeatMateId(seat.id, snapCols);
+            const mate = byId.get(Number(mateId));
+            if (!mate || mate.void || !mate.name) continue;
+            const a = String(seat.name);
+            const b = String(mate.name);
+            if (!a || !b || a === b) continue;
+            const key = pairKey(a, b);
+            out.oldPartnerSet.add(key);
+            if (!out.oldPartnerDetail.has(key)) out.oldPartnerDetail.set(key, []);
+            const arr = out.oldPartnerDetail.get(key);
+            if (!arr.some(x => x.slot === slotName)) arr.push({ slot: slotName, t });
+          }
+        }
+      } catch {}
+    }
+
+    for (const arr of out.oldSeatDetail.values()) arr.sort((a,b)=>(b.t||0)-(a.t||0));
+    for (const arr of out.oldPartnerDetail.values()) arr.sort((a,b)=>(b.t||0)-(a.t||0));
+    return out;
+  }
+
   // ===== Save Slots =====
   const SLOT_INDEX_KEY = "seatplan_slots_v015";
   const ROTATION_LEDGER_KEY = "seatplan_rotation_ledger_v1";
@@ -4681,6 +4907,8 @@ function updateRotationLedgerForSlot(slotId) {
         balanceLevels: !!(balanceLevels && balanceLevels.checked),
         rotateFront: !!(rotateFront && rotateFront.checked),
         rotateBack: !!(rotateBack && rotateBack.checked),
+        avoidOldSeat: !!(avoidOldSeat && avoidOldSeat.checked),
+        avoidOldPartner: !!(avoidOldPartner && avoidOldPartner.checked),
       },
       text: {
         students: studentsInput ? studentsInput.value : "",
@@ -4710,6 +4938,8 @@ function currentSnapshot() {
         balanceLevels: !!(balanceLevels && balanceLevels.checked),
         rotateFront: !!(rotateFront && rotateFront.checked),
         rotateBack: !!(rotateBack && rotateBack.checked),
+        avoidOldSeat: !!(avoidOldSeat && avoidOldSeat.checked),
+        avoidOldPartner: !!(avoidOldPartner && avoidOldPartner.checked),
       },
       text: {
         students: studentsInput ? studentsInput.value : "",
@@ -4753,6 +4983,8 @@ function currentSnapshot() {
     if (balanceLevels) balanceLevels.checked = !!ui.balanceLevels;
     if (rotateFront) rotateFront.checked = !!ui.rotateFront;
     if (rotateBack) rotateBack.checked = !!ui.rotateBack;
+    if (avoidOldSeat) avoidOldSeat.checked = !!ui.avoidOldSeat;
+    if (avoidOldPartner) avoidOldPartner.checked = !!ui.avoidOldPartner;
     if (useForbidden) useForbidden.checked = ui.useForbidden ?? true;
     if (useRotation) useRotation.checked = ui.useRotation ?? false;
 
@@ -4801,7 +5033,7 @@ function currentSnapshot() {
 
     // 새로 저장: 즉시 스냅샷 저장
     try {
-      localStorage.setItem(slotKey(id), JSON.stringify(currentSnapshot()));
+      localStorage.setItem(slotKey(id), JSON.stringify({ ...currentSnapshot(), savedAt: Date.now() }));
       try { updateRotationLedgerForSlot(id); } catch {}
     } catch {}
 
@@ -4816,7 +5048,7 @@ function currentSnapshot() {
     if (!id) { toast("덮어쓸 배치도를 선택하세요."); return; }
 
     // ✅ 먼저 스냅샷 저장
-    localStorage.setItem(slotKey(id), JSON.stringify(currentSnapshot()));
+    localStorage.setItem(slotKey(id), JSON.stringify({ ...currentSnapshot(), savedAt: Date.now() }));
 
     // ✅ 로테이션 기록은 '배치도 저장' 시에만 기록하며, 같은 배치도를 다시 저장하면 덮어쓰기
     try { updateRotationLedgerForSlot(id); } catch {}
@@ -4885,6 +5117,16 @@ function currentSnapshot() {
 
   if (useRotation) useRotation.addEventListener("change", () => {
     syncOptionEnables();
+    computeViolations();
+    renderGrid();
+  });
+  if (avoidOldSeat) avoidOldSeat.addEventListener("change", () => {
+    computeViolations();
+    renderGrid();
+  });
+  if (avoidOldPartner) avoidOldPartner.addEventListener("change", () => {
+    computeViolations();
+    renderGrid();
   });
 
   // ===== Start =====

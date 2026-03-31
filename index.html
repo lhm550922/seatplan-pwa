@@ -16,7 +16,7 @@
   <header class="header">
     <div class="headerTop">
       <div class="headerBrand">
-        <h1>자리배치 PWA <span style="opacity:.65;font-weight:900">v2.1</span></h1>
+        <h1>자리배치 PWA <span style="opacity:.65;font-weight:900">v2.12</span></h1>
         <p class="sub">🧑‍🏫 담임교사를 위한 자리배치 도구</p>
       </div>
       <nav class="topNav" aria-label="사이트 메뉴">
@@ -367,6 +367,33 @@
           </div>
           <div class="subDesc" style="margin-top:6px; color:#b9c3d4; font-size:12.5px;">
             ※ 저장된 배치도 전체 기록을 기준으로 회피하면, 좌석 수/기록 누적에 따라 100% 회피가 불가능할 수 있어요.
+          </div>
+        </div>
+
+        <hr class="sep" />
+
+        <div class="sectionBlock">
+          <div class="sectionHead">
+            <label class="sectionHeadToggle">
+              <input id="avoidOldPartner" type="checkbox" />
+              <span class="sectionTitle">예전 짝꿍 중복 회피</span>
+              <span class="sectionHeadDescInline">-이전에 같은 짝이었던 학생이 다시 짝이 되지 않도록 최대한 회피해요</span>
+            </label>
+          </div>
+          <div class="subDesc" style="margin-top:6px; color:#b9c3d4; font-size:12.5px;">
+            책상 배열에서 2인 책상 선택했을 경우만 가능합니다.
+          </div>
+        </div>
+
+        <hr class="sep" />
+
+        <div class="sectionBlock">
+          <div class="sectionHead">
+            <label class="sectionHeadToggle">
+              <input id="avoidOldSeat" type="checkbox" />
+              <span class="sectionTitle">예전 자리 중복 회피</span>
+              <span class="sectionHeadDescInline">-저장된 배치도에서 앉았던 같은 자리 번호를 다시 피하도록 배치해요</span>
+            </label>
           </div>
         </div>
       </div>

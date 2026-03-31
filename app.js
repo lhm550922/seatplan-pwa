@@ -294,7 +294,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "2.12";
+  const APP_VERSION = "2.14";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -3397,7 +3397,7 @@ function renderForbiddenGroupsFromTextarea() {
     const oldPartnerSet = historicalData.oldPartnerSet;
     const oldPartnerDetail = historicalData.oldPartnerDetail;
 
-    const allowedForSeat = (name, seatId) => {
+    const allowedForSeat = (name, seatId, partialSeatToName = null) => {
       const seat = getSeat(seatId);
       if (!seat || seat.void) return false;
 
@@ -3406,10 +3406,31 @@ function renderForbiddenGroupsFromTextarea() {
       if (frontSeatSet.has(seatId) && bannedFrontNames.has(nm)) return false;
       if (backSeatSet.has(seatId) && bannedBackNames.has(nm)) return false;
 
+      // 예전 자리 회피는 가능한 경우 하드 제약으로 먼저 탐색
+      if (avoidOldSeatOn) {
+        const usedSeats = oldSeatMap.get(nm);
+        if (usedSeats && usedSeats.has(Number(seatId))) return false;
+      }
+
       const req = seat.seatGender ?? "A";
-      if (req === "A") return true;
-      const g = nameToGender.get(nm) || "A";
-      return g === req || g === "A";
+      if (req !== "A") {
+        const g = nameToGender.get(nm) || "A";
+        if (!(g === req || g === "A")) return false;
+      }
+
+      // 2인 책상에서는 예전 짝꿍 회피도 가능한 경우 하드 제약으로 먼저 탐색
+      if (avoidOldPartnerOn) {
+        const mateId = getPairSeatMateId(seatId, cols);
+        if (mateId != null && partialSeatToName) {
+          const mateName = partialSeatToName[mateId];
+          if (mateName) {
+            const key = pairKey(nm, String(mateName));
+            if (oldPartnerSet.has(key)) return false;
+          }
+        }
+      }
+
+      return true;
     };
 
     // --- (금지쌍 만족) 탐색 유틸 ---
@@ -3557,7 +3578,126 @@ function renderForbiddenGroupsFromTextarea() {
       return s.rotation * 100000000 + s.oldPartner * 1000000 + s.oldSeat * 10000 + s.gender * 1000 + s.forbidden * 100 + s.level * 10;
     };
 
+
+    const buildHistoricalPerfectSeed = () => {
+      if (!(rotOn || avoidOldSeatOn || avoidOldPartnerOn)) return null;
+      if (pool.length !== freeSeatIds.length) return null;
+
+      const seatToName = Array.from({ length: seatCount() }, () => null);
+      for (const s of seats) {
+        if (s.void) continue;
+        if (s.locked && s.name) seatToName[s.id] = s.name;
+      }
+
+      const remainingNames = new Set(pool);
+      const candidateMap = new Map();
+      for (const id of freeSeatIds) {
+        const candidates = pool.filter((nm) => allowedForSeat(nm, id, seatToName));
+        if (!candidates.length) return null;
+        candidateMap.set(id, candidates);
+      }
+
+      const pairedSeatIds = new Set();
+      const pairUnits = [];
+      const singleUnits = [];
+      for (const id of freeSeatIds) {
+        if (pairedSeatIds.has(id)) continue;
+        if (avoidOldPartnerOn) {
+          const mateId = getPairSeatMateId(id, cols);
+          if (mateId != null) {
+            const mateSeat = getSeat(mateId);
+            const mateFree = freeSeatIds.includes(mateId);
+            if (mateSeat && !mateSeat.void && mateFree && !pairedSeatIds.has(mateId)) {
+              pairedSeatIds.add(id);
+              pairedSeatIds.add(mateId);
+              pairUnits.push([id, mateId].sort((a, b) => a - b));
+              continue;
+            }
+          }
+        }
+        pairedSeatIds.add(id);
+        singleUnits.push([id]);
+      }
+
+      pairUnits.sort((a, b) => {
+        const ac = (candidateMap.get(a[0]) || []).length * (candidateMap.get(a[1]) || []).length;
+        const bc = (candidateMap.get(b[0]) || []).length * (candidateMap.get(b[1]) || []).length;
+        return ac - bc;
+      });
+      singleUnits.sort((a, b) => ((candidateMap.get(a[0]) || []).length - (candidateMap.get(b[0]) || []).length));
+      const units = pairUnits.concat(singleUnits);
+
+      const maxNodes = avoidOldPartnerOn ? 200000 : 120000;
+      let nodes = 0;
+
+      const dfs = (unitIndex) => {
+        if (unitIndex >= units.length) return true;
+        if ((nodes += 1) > maxNodes) return false;
+
+        const unit = units[unitIndex];
+        if (unit.length === 2) {
+          const [a, b] = unit;
+          let candA = (candidateMap.get(a) || []).filter((nm) => remainingNames.has(nm) && allowedForSeat(nm, a, seatToName));
+          let candB = (candidateMap.get(b) || []).filter((nm) => remainingNames.has(nm) && allowedForSeat(nm, b, seatToName));
+          candA.sort((x, y) => ((oldSeatMap.get(String(x))?.size || 0) - (oldSeatMap.get(String(y))?.size || 0)) || (Math.random() - 0.5));
+          candB.sort((x, y) => ((oldSeatMap.get(String(x))?.size || 0) - (oldSeatMap.get(String(y))?.size || 0)) || (Math.random() - 0.5));
+          const combos = [];
+          for (const na of candA) {
+            for (const nb of candB) {
+              if (na === nb) continue;
+              if (!allowedForSeat(na, a, seatToName)) continue;
+              seatToName[a] = na;
+              const okB = allowedForSeat(nb, b, seatToName);
+              seatToName[a] = null;
+              if (!okB) continue;
+              combos.push([na, nb]);
+            }
+          }
+          combos.sort((p1, p2) => {
+            const c1 = (oldSeatMap.get(String(p1[0]))?.size || 0) + (oldSeatMap.get(String(p1[1]))?.size || 0);
+            const c2 = (oldSeatMap.get(String(p2[0]))?.size || 0) + (oldSeatMap.get(String(p2[1]))?.size || 0);
+            return c1 - c2 || (Math.random() - 0.5);
+          });
+          for (const [na, nb] of combos) {
+            if (!remainingNames.has(na) || !remainingNames.has(nb)) continue;
+            if (!allowedForSeat(na, a, seatToName)) continue;
+            seatToName[a] = na;
+            if (!allowedForSeat(nb, b, seatToName)) {
+              seatToName[a] = null;
+              continue;
+            }
+            seatToName[b] = nb;
+            remainingNames.delete(na);
+            remainingNames.delete(nb);
+            if (dfs(unitIndex + 1)) return true;
+            remainingNames.add(na);
+            remainingNames.add(nb);
+            seatToName[a] = null;
+            seatToName[b] = null;
+          }
+          return false;
+        }
+
+        const [id] = unit;
+        let candidates = (candidateMap.get(id) || []).filter((nm) => remainingNames.has(nm) && allowedForSeat(nm, id, seatToName));
+        candidates.sort((x, y) => ((oldSeatMap.get(String(x))?.size || 0) - (oldSeatMap.get(String(y))?.size || 0)) || (Math.random() - 0.5));
+        for (const nm of candidates) {
+          if (!allowedForSeat(nm, id, seatToName)) continue;
+          seatToName[id] = nm;
+          remainingNames.delete(nm);
+          if (dfs(unitIndex + 1)) return true;
+          remainingNames.add(nm);
+          seatToName[id] = null;
+        }
+        return false;
+      };
+
+      return dfs(0) ? seatToName : null;
+    };
+
     const buildMatchingSeed = () => {
+      const historicalPerfectSeed = buildHistoricalPerfectSeed();
+      if (historicalPerfectSeed) return historicalPerfectSeed;
       if (pool.length !== freeSeatIds.length) return null;
 
       const seatToName = Array.from({ length: seatCount() }, () => null);
@@ -3568,7 +3708,7 @@ function renderForbiddenGroupsFromTextarea() {
 
       const edges = new Map();
       for (const id of freeSeatIds) {
-        const candidates = shuffleArr(pool.filter((nm) => allowedForSeat(nm, id)));
+        const candidates = shuffleArr(pool.filter((nm) => allowedForSeat(nm, id, seatToName)));
         edges.set(id, candidates);
       }
       for (const id of freeSeatIds) {
@@ -3619,7 +3759,7 @@ function renderForbiddenGroupsFromTextarea() {
         }
         let pickIndex = -1;
         for (let k = 0; k < remaining.length; k++) {
-          if (allowedForSeat(remaining[k], id)) {
+          if (allowedForSeat(remaining[k], id, seatToName)) {
             pickIndex = k;
             break;
           }
@@ -3638,7 +3778,7 @@ function renderForbiddenGroupsFromTextarea() {
       let bestScore = { ...curScore };
 
       const needOptimize = (forbiddenPairs.length > 0) || (balanceLevels && balanceLevels.checked) || (activeSeatIds.some(id => (getSeat(id)?.seatGender ?? 'A') !== 'A')) || rotOn || avoidOldSeatOn || avoidOldPartnerOn;
-      const steps = needOptimize ? ((rotOn || avoidOldSeatOn || avoidOldPartnerOn) ? 4200 : 1400) : 0;
+      const steps = needOptimize ? ((rotOn || avoidOldSeatOn || avoidOldPartnerOn) ? 7200 : 1400) : 0;
 
       for (let step = 0; step < steps; step++) {
         if (bestScore.rotation === 0 && bestScore.oldPartner === 0 && bestScore.oldSeat === 0 && bestScore.gender === 0 && bestScore.forbidden === 0 && bestScore.level === 0) break;
@@ -3682,7 +3822,7 @@ function renderForbiddenGroupsFromTextarea() {
 
     const hardMatchExists = !!buildMatchingSeed();
     const needManyAttempts = rotOn || avoidOldSeatOn || avoidOldPartnerOn || (forbiddenPairs.length > 0) || (balanceLevels && balanceLevels.checked) || (activeSeatIds.some(id => (getSeat(id)?.seatGender ?? 'A') !== 'A'));
-    const attempts = hardMatchExists ? ((rotOn || avoidOldSeatOn || avoidOldPartnerOn) ? 260 : 90) : (needManyAttempts ? 140 : 1);
+    const attempts = hardMatchExists ? ((rotOn || avoidOldSeatOn || avoidOldPartnerOn) ? 480 : 90) : (needManyAttempts ? 220 : 1);
 
     for (let t = 0; t < attempts; t++) {
       const seed = makeInitialAssignment();
@@ -5063,7 +5203,9 @@ function currentSnapshot() {
     const raw = localStorage.getItem(slotKey(id));
     if (!raw) { toast("저장 데이터가 없어요."); return; }
     try {
+      pushUndo("loadSlot");
       applySnapshot(JSON.parse(raw));
+      updateHistoryButtons();
       toast("불러오기 완료!");
       log("배치도 불러오기 완료");
     } catch { toast("불러오기 실패(데이터 손상)."); }

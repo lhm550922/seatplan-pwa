@@ -65,8 +65,6 @@
   // 학생 명단 영구 보존(v0.92 patch): "학생 입력 > 저장"을 누른 명단을 로컬에 저장해 업데이트/새로고침 후에도 복원
   const LS_STUDENTS_KEY = "seatplan_students_v1";
   let isDemoStudentList = false;
-  const DEBUG_HISTORY_CHECK = true;
-  let lastHistoryDebug = null;
 
   // 임시 작업 자동 복원(페이지 이동 후 돌아와도 유지)
   const AUTOSAVE_KEY = "seatplan_autosave_v1_4";
@@ -296,14 +294,14 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "2.14-debug";
+  const APP_VERSION = "2.13";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
     try{
       if (undoBtn) undoBtn.disabled = (undoStack.length === 0);
       if (redoBtn) redoBtn.disabled = (redoStack.length === 0);
-      if (clearBtn) clearBtn.disabled = (undoStack.length === 0 && redoStack.length === 0);
+      if (clearBtn) clearBtn.disabled = false;
     }catch(e){}
   }
 
@@ -2124,7 +2122,6 @@ for (let i = 0; i < orderedIds.length; i += size) {
     }
 
     const historicalData = buildHistoricalAvoidanceData();
-    lastHistoryDebug = historicalData && historicalData.debug ? { ...(historicalData.debug || {}) } : null;
     const oldSeatLines = [];
     const oldPartnerLines = [];
     let oldSeatCount = 0;
@@ -2229,32 +2226,13 @@ for (let i = 0; i < orderedIds.length; i += size) {
     const hasOldPartner = (oldPartnerCount > 0);
     const hasOldSeat = (oldSeatCount > 0);
 
-    const debugOut = [];
-    if (DEBUG_HISTORY_CHECK && lastHistoryDebug) {
-      const d = lastHistoryDebug;
-      debugOut.push(`[디버그] 저장목록 ${d.slotCount ?? 0}개 / 읽은 슬롯 ${d.slotsRead ?? 0}개 / 파싱 성공 ${d.slotsParsed ?? 0}개`);
-      debugOut.push(`[디버그] 현재 배치와 같은 구조로 읽힌 저장본 ${d.slotsMatchedSignature ?? 0}개 / 2인 책상 저장본 ${d.pairSlotsRead ?? 0}개`);
-      debugOut.push(`[디버그] 이전 자리 기록 학생 ${d.seatHistoryNames ?? 0}명 / 항목 ${d.seatHistoryEntries ?? 0}개`);
-      debugOut.push(`[디버그] 이전 짝 기록 ${d.partnerHistoryPairs ?? 0}쌍 / 항목 ${d.partnerHistoryEntries ?? 0}개`);
-      debugOut.push(`[디버그] 이번 결과: 로테이션 ${rotationCount}명 / 이전 짝 ${oldPartnerCount}건 / 이전 자리 ${oldSeatCount}명`);
-      if (Array.isArray(d.sampleMatchedSlots) && d.sampleMatchedSlots.length) debugOut.push(`[디버그] 같은 구조 저장본 예시: ${d.sampleMatchedSlots.join(", ")}`);
-      if (Array.isArray(d.sampleUnmatchedSlots) && d.sampleUnmatchedSlots.length) debugOut.push(`[디버그] 구조 불일치 저장본 예시: ${d.sampleUnmatchedSlots.join(", ")}`);
-      if (Array.isArray(d.samplePairSlots) && d.samplePairSlots.length) debugOut.push(`[디버그] 2인 책상 저장본 예시: ${d.samplePairSlots.join(", ")}`);
-    }
-
     if (!hasForbidden && !hasRotation && !hasOldPartner && !hasOldSeat) {
-      if (debugOut.length) {
-        violationsBar.style.display = "block";
-        violationsBar.textContent = debugOut.join("\n");
-      } else {
-        violationsBar.style.display = "none";
-        violationsBar.textContent = "";
-      }
+      violationsBar.style.display = "none";
+      violationsBar.textContent = "";
       return;
     }
 
     const out = [];
-    if (debugOut.length) out.push(...debugOut, "");
     if (hasForbidden) {
       const lines = violations.map(
         (v) => {
@@ -2564,11 +2542,46 @@ function renderForbiddenGroupsFromTextarea() {
     selectedSeatId = null;
     closeGroupMenu();
 
-    if (layoutKind === "group") {
-      applyLayout("group", layoutParams);
-      log("초기화 완료(모둠대형 패턴 재적용)");
-      return;
+    try { clearAutosaveSnapshot(); } catch (e) {}
+    try { clearAutosaveRestoreAllowed(); } catch (e) {}
+
+    // 언제든 강하게 초기 상태로 되돌림
+    try {
+      layoutKind = "single";
+      layoutParams = { singleCols: 5, singleRows: 6, pairCols: 2, pairRows: 6, groupSize: 4, groupCount: 3 };
+      cols = 5;
+      rows = 6;
+      boardAtTop = true;
+      if (seatTypeSel) seatTypeSel.value = "single";
+      applyLayout("single", layoutParams);
+    } catch (e) {
+      cols = 5;
+      rows = 6;
+      layoutKind = "single";
+      if (seatTypeSel) seatTypeSel.value = "single";
+      buildSeatModel();
     }
+
+    if (studentsInput) studentsInput.value = "";
+    if (forbiddenInput) forbiddenInput.value = "";
+    isDemoStudentList = false;
+
+    if (useForbidden) useForbidden.checked = true;
+    if (useRotation) useRotation.checked = false;
+    if (rotateFront) rotateFront.checked = false;
+    if (rotateBack) rotateBack.checked = false;
+    if (avoidOldSeat) avoidOldSeat.checked = false;
+    if (avoidOldPartner) avoidOldPartner.checked = false;
+    if (includeDiagonal) includeDiagonal.checked = false;
+    if (includeSameGroup) includeSameGroup.checked = false;
+    if (balanceLevels) balanceLevels.checked = false;
+    if (groupMode) groupMode.value = "none";
+    if (showSeatNo) showSeatNo.checked = false;
+    if (showGroups) showGroups.checked = false;
+    if (showGender) showGender.checked = false;
+    if (showForbiddenDots) showForbiddenDots.checked = false;
+
+    try { renderForbiddenGroupsFromTextarea(); } catch (e) {}
 
     for (const s of seats) {
       s.name = null;
@@ -2579,9 +2592,11 @@ function renderForbiddenGroupsFromTextarea() {
       s.seatGender = "A";
     }
 
-    violations = [];
-    if (violationsBar) { violationsBar.style.display = "none"; violationsBar.textContent = ""; }
-
+    undoStack = [];
+    redoStack = [];
+    updateHistoryButtons();
+    syncOptionEnables();
+    computeViolations();
     renderGrid();
     log("초기화 완료");
   }
@@ -3412,7 +3427,6 @@ function renderForbiddenGroupsFromTextarea() {
     }
 
     const historicalData = buildHistoricalAvoidanceData();
-    lastHistoryDebug = historicalData && historicalData.debug ? { ...(historicalData.debug || {}) } : null;
     const avoidOldSeatOn = !!(avoidOldSeat && avoidOldSeat.checked);
     const avoidOldPartnerOn = !!(layoutKind === "pair" && avoidOldPartner && avoidOldPartner.checked);
     const oldSeatMap = historicalData.oldSeatMap;
@@ -3420,7 +3434,7 @@ function renderForbiddenGroupsFromTextarea() {
     const oldPartnerSet = historicalData.oldPartnerSet;
     const oldPartnerDetail = historicalData.oldPartnerDetail;
 
-    const allowedForSeat = (name, seatId, partialSeatToName = null) => {
+    const allowedForSeat = (name, seatId) => {
       const seat = getSeat(seatId);
       if (!seat || seat.void) return false;
 
@@ -3429,31 +3443,10 @@ function renderForbiddenGroupsFromTextarea() {
       if (frontSeatSet.has(seatId) && bannedFrontNames.has(nm)) return false;
       if (backSeatSet.has(seatId) && bannedBackNames.has(nm)) return false;
 
-      // 예전 자리 회피는 가능한 경우 하드 제약으로 먼저 탐색
-      if (avoidOldSeatOn) {
-        const usedSeats = oldSeatMap.get(nm);
-        if (usedSeats && usedSeats.has(Number(seatId))) return false;
-      }
-
       const req = seat.seatGender ?? "A";
-      if (req !== "A") {
-        const g = nameToGender.get(nm) || "A";
-        if (!(g === req || g === "A")) return false;
-      }
-
-      // 2인 책상에서는 예전 짝꿍 회피도 가능한 경우 하드 제약으로 먼저 탐색
-      if (avoidOldPartnerOn) {
-        const mateId = getPairSeatMateId(seatId, cols);
-        if (mateId != null && partialSeatToName) {
-          const mateName = partialSeatToName[mateId];
-          if (mateName) {
-            const key = pairKey(nm, String(mateName));
-            if (oldPartnerSet.has(key)) return false;
-          }
-        }
-      }
-
-      return true;
+      if (req === "A") return true;
+      const g = nameToGender.get(nm) || "A";
+      return g === req || g === "A";
     };
 
     // --- (금지쌍 만족) 탐색 유틸 ---
@@ -3601,126 +3594,7 @@ function renderForbiddenGroupsFromTextarea() {
       return s.rotation * 100000000 + s.oldPartner * 1000000 + s.oldSeat * 10000 + s.gender * 1000 + s.forbidden * 100 + s.level * 10;
     };
 
-
-    const buildHistoricalPerfectSeed = () => {
-      if (!(rotOn || avoidOldSeatOn || avoidOldPartnerOn)) return null;
-      if (pool.length !== freeSeatIds.length) return null;
-
-      const seatToName = Array.from({ length: seatCount() }, () => null);
-      for (const s of seats) {
-        if (s.void) continue;
-        if (s.locked && s.name) seatToName[s.id] = s.name;
-      }
-
-      const remainingNames = new Set(pool);
-      const candidateMap = new Map();
-      for (const id of freeSeatIds) {
-        const candidates = pool.filter((nm) => allowedForSeat(nm, id, seatToName));
-        if (!candidates.length) return null;
-        candidateMap.set(id, candidates);
-      }
-
-      const pairedSeatIds = new Set();
-      const pairUnits = [];
-      const singleUnits = [];
-      for (const id of freeSeatIds) {
-        if (pairedSeatIds.has(id)) continue;
-        if (avoidOldPartnerOn) {
-          const mateId = getPairSeatMateId(id, cols);
-          if (mateId != null) {
-            const mateSeat = getSeat(mateId);
-            const mateFree = freeSeatIds.includes(mateId);
-            if (mateSeat && !mateSeat.void && mateFree && !pairedSeatIds.has(mateId)) {
-              pairedSeatIds.add(id);
-              pairedSeatIds.add(mateId);
-              pairUnits.push([id, mateId].sort((a, b) => a - b));
-              continue;
-            }
-          }
-        }
-        pairedSeatIds.add(id);
-        singleUnits.push([id]);
-      }
-
-      pairUnits.sort((a, b) => {
-        const ac = (candidateMap.get(a[0]) || []).length * (candidateMap.get(a[1]) || []).length;
-        const bc = (candidateMap.get(b[0]) || []).length * (candidateMap.get(b[1]) || []).length;
-        return ac - bc;
-      });
-      singleUnits.sort((a, b) => ((candidateMap.get(a[0]) || []).length - (candidateMap.get(b[0]) || []).length));
-      const units = pairUnits.concat(singleUnits);
-
-      const maxNodes = avoidOldPartnerOn ? 200000 : 120000;
-      let nodes = 0;
-
-      const dfs = (unitIndex) => {
-        if (unitIndex >= units.length) return true;
-        if ((nodes += 1) > maxNodes) return false;
-
-        const unit = units[unitIndex];
-        if (unit.length === 2) {
-          const [a, b] = unit;
-          let candA = (candidateMap.get(a) || []).filter((nm) => remainingNames.has(nm) && allowedForSeat(nm, a, seatToName));
-          let candB = (candidateMap.get(b) || []).filter((nm) => remainingNames.has(nm) && allowedForSeat(nm, b, seatToName));
-          candA.sort((x, y) => ((oldSeatMap.get(String(x))?.size || 0) - (oldSeatMap.get(String(y))?.size || 0)) || (Math.random() - 0.5));
-          candB.sort((x, y) => ((oldSeatMap.get(String(x))?.size || 0) - (oldSeatMap.get(String(y))?.size || 0)) || (Math.random() - 0.5));
-          const combos = [];
-          for (const na of candA) {
-            for (const nb of candB) {
-              if (na === nb) continue;
-              if (!allowedForSeat(na, a, seatToName)) continue;
-              seatToName[a] = na;
-              const okB = allowedForSeat(nb, b, seatToName);
-              seatToName[a] = null;
-              if (!okB) continue;
-              combos.push([na, nb]);
-            }
-          }
-          combos.sort((p1, p2) => {
-            const c1 = (oldSeatMap.get(String(p1[0]))?.size || 0) + (oldSeatMap.get(String(p1[1]))?.size || 0);
-            const c2 = (oldSeatMap.get(String(p2[0]))?.size || 0) + (oldSeatMap.get(String(p2[1]))?.size || 0);
-            return c1 - c2 || (Math.random() - 0.5);
-          });
-          for (const [na, nb] of combos) {
-            if (!remainingNames.has(na) || !remainingNames.has(nb)) continue;
-            if (!allowedForSeat(na, a, seatToName)) continue;
-            seatToName[a] = na;
-            if (!allowedForSeat(nb, b, seatToName)) {
-              seatToName[a] = null;
-              continue;
-            }
-            seatToName[b] = nb;
-            remainingNames.delete(na);
-            remainingNames.delete(nb);
-            if (dfs(unitIndex + 1)) return true;
-            remainingNames.add(na);
-            remainingNames.add(nb);
-            seatToName[a] = null;
-            seatToName[b] = null;
-          }
-          return false;
-        }
-
-        const [id] = unit;
-        let candidates = (candidateMap.get(id) || []).filter((nm) => remainingNames.has(nm) && allowedForSeat(nm, id, seatToName));
-        candidates.sort((x, y) => ((oldSeatMap.get(String(x))?.size || 0) - (oldSeatMap.get(String(y))?.size || 0)) || (Math.random() - 0.5));
-        for (const nm of candidates) {
-          if (!allowedForSeat(nm, id, seatToName)) continue;
-          seatToName[id] = nm;
-          remainingNames.delete(nm);
-          if (dfs(unitIndex + 1)) return true;
-          remainingNames.add(nm);
-          seatToName[id] = null;
-        }
-        return false;
-      };
-
-      return dfs(0) ? seatToName : null;
-    };
-
     const buildMatchingSeed = () => {
-      const historicalPerfectSeed = buildHistoricalPerfectSeed();
-      if (historicalPerfectSeed) return historicalPerfectSeed;
       if (pool.length !== freeSeatIds.length) return null;
 
       const seatToName = Array.from({ length: seatCount() }, () => null);
@@ -3731,7 +3605,7 @@ function renderForbiddenGroupsFromTextarea() {
 
       const edges = new Map();
       for (const id of freeSeatIds) {
-        const candidates = shuffleArr(pool.filter((nm) => allowedForSeat(nm, id, seatToName)));
+        const candidates = shuffleArr(pool.filter((nm) => allowedForSeat(nm, id)));
         edges.set(id, candidates);
       }
       for (const id of freeSeatIds) {
@@ -3782,7 +3656,7 @@ function renderForbiddenGroupsFromTextarea() {
         }
         let pickIndex = -1;
         for (let k = 0; k < remaining.length; k++) {
-          if (allowedForSeat(remaining[k], id, seatToName)) {
+          if (allowedForSeat(remaining[k], id)) {
             pickIndex = k;
             break;
           }
@@ -3794,6 +3668,107 @@ function renderForbiddenGroupsFromTextarea() {
       return seatToName;
     };
 
+    const buildExactHardAssignment = () => {
+      const hardOn = rotOn || avoidOldSeatOn || avoidOldPartnerOn;
+      if (!hardOn) return null;
+
+      const seatToName = Array.from({ length: seatCount() }, () => null);
+      for (const s of seats) {
+        if (s.void) continue;
+        if (s.locked && s.name) seatToName[s.id] = s.name;
+      }
+
+      const freeNames = pool.slice();
+      const used = new Set();
+      const lockedNameBySeat = new Map();
+      for (const s of seats) {
+        if (s && !s.void && s.locked && s.name) lockedNameBySeat.set(Number(s.id), String(s.name));
+      }
+
+      const hardAllows = (name, seatId) => {
+        const nm = String(name || "");
+        if (!allowedForSeat(nm, seatId)) return false;
+        if (avoidOldSeatOn) {
+          const usedSeats = oldSeatMap.get(nm);
+          if (usedSeats && usedSeats.has(Number(seatId))) return false;
+        }
+        if (avoidOldPartnerOn && layoutKind === "pair") {
+          const mateId = getPairSeatMateId(seatId, cols);
+          const mateName = seatToName[mateId] || lockedNameBySeat.get(Number(mateId)) || null;
+          if (mateName && oldPartnerSet.has(pairKey(nm, String(mateName)))) return false;
+        }
+        return true;
+      };
+
+      const candidateNamesForSeat = (seatId) => freeNames.filter((nm) => !used.has(nm) && hardAllows(nm, seatId));
+
+      const orderRemainingSeats = () => {
+        const remain = freeSeatIds.filter((id) => !seatToName[id]);
+        remain.sort((a, b) => {
+          const ac = candidateNamesForSeat(a).length;
+          const bc = candidateNamesForSeat(b).length;
+          if (ac !== bc) return ac - bc;
+          const am = getPairSeatMateId(a, cols);
+          const bm = getPairSeatMateId(b, cols);
+          const aMateAssigned = !!(seatToName[am] || lockedNameBySeat.get(Number(am)));
+          const bMateAssigned = !!(seatToName[bm] || lockedNameBySeat.get(Number(bm)));
+          if (aMateAssigned !== bMateAssigned) return aMateAssigned ? -1 : 1;
+          return a - b;
+        });
+        return remain;
+      };
+
+      const startAt = Date.now();
+      const TIME_LIMIT_MS = 2200;
+      const NODE_LIMIT = 120000;
+      let nodes = 0;
+      let solved = false;
+
+      const forwardCheck = () => {
+        const remain = freeSeatIds.filter((id) => !seatToName[id]);
+        for (const id of remain) {
+          if (candidateNamesForSeat(id).length === 0) return false;
+        }
+        return true;
+      };
+
+      const dfs = () => {
+        if (solved) return true;
+        if ((Date.now() - startAt) > TIME_LIMIT_MS) return false;
+        if (++nodes > NODE_LIMIT) return false;
+
+        const remain = orderRemainingSeats();
+        if (remain.length === 0) {
+          solved = true;
+          return true;
+        }
+
+        const seatId = remain[0];
+        let candidates = candidateNamesForSeat(seatId);
+        if (!candidates.length) return false;
+        candidates = shuffleArr(candidates).sort((a, b) => {
+          const aa = oldSeatDetail.get(String(a))?.length || 0;
+          const bb = oldSeatDetail.get(String(b))?.length || 0;
+          return aa - bb;
+        });
+
+        for (const nm of candidates) {
+          seatToName[seatId] = nm;
+          used.add(nm);
+
+          if (forwardCheck() && dfs()) return true;
+
+          used.delete(nm);
+          seatToName[seatId] = null;
+        }
+        return false;
+      };
+
+      if (!forwardCheck()) return null;
+      if (!dfs()) return null;
+      return seatToName.slice();
+    };
+
     const improveBySwaps = (seed) => {
       let cur = seed.slice();
       let curScore = scoreOf(cur);
@@ -3801,7 +3776,7 @@ function renderForbiddenGroupsFromTextarea() {
       let bestScore = { ...curScore };
 
       const needOptimize = (forbiddenPairs.length > 0) || (balanceLevels && balanceLevels.checked) || (activeSeatIds.some(id => (getSeat(id)?.seatGender ?? 'A') !== 'A')) || rotOn || avoidOldSeatOn || avoidOldPartnerOn;
-      const steps = needOptimize ? ((rotOn || avoidOldSeatOn || avoidOldPartnerOn) ? 7200 : 1400) : 0;
+      const steps = needOptimize ? ((rotOn || avoidOldSeatOn || avoidOldPartnerOn) ? 4200 : 1400) : 0;
 
       for (let step = 0; step < steps; step++) {
         if (bestScore.rotation === 0 && bestScore.oldPartner === 0 && bestScore.oldSeat === 0 && bestScore.gender === 0 && bestScore.forbidden === 0 && bestScore.level === 0) break;
@@ -3843,18 +3818,33 @@ function renderForbiddenGroupsFromTextarea() {
     let bestGlobal = null;
     let bestGlobalScore = null;
 
-    const hardMatchExists = !!buildMatchingSeed();
-    const needManyAttempts = rotOn || avoidOldSeatOn || avoidOldPartnerOn || (forbiddenPairs.length > 0) || (balanceLevels && balanceLevels.checked) || (activeSeatIds.some(id => (getSeat(id)?.seatGender ?? 'A') !== 'A'));
-    const attempts = hardMatchExists ? ((rotOn || avoidOldSeatOn || avoidOldPartnerOn) ? 480 : 90) : (needManyAttempts ? 220 : 1);
+    const exactHardSeed = buildExactHardAssignment();
+    if (exactHardSeed) {
+      const optimized = improveBySwaps(exactHardSeed);
+      const exactScore = scoreOf(optimized.best);
+      if ((exactScore.rotation || 0) === 0 && (exactScore.oldPartner || 0) === 0 && (exactScore.oldSeat || 0) === 0) {
+        bestGlobal = optimized.best;
+        bestGlobalScore = exactScore;
+      } else {
+        bestGlobal = exactHardSeed;
+        bestGlobalScore = scoreOf(exactHardSeed);
+      }
+    }
 
-    for (let t = 0; t < attempts; t++) {
-      const seed = makeInitialAssignment();
-      const { best, bestScore } = improveBySwaps(seed);
+    if (!bestGlobal) {
+      const hardMatchExists = !!buildMatchingSeed();
+      const needManyAttempts = rotOn || avoidOldSeatOn || avoidOldPartnerOn || (forbiddenPairs.length > 0) || (balanceLevels && balanceLevels.checked) || (activeSeatIds.some(id => (getSeat(id)?.seatGender ?? 'A') !== 'A'));
+      const attempts = hardMatchExists ? ((rotOn || avoidOldSeatOn || avoidOldPartnerOn) ? 520 : 120) : (needManyAttempts ? 220 : 1);
 
-      if (compareScore(bestScore, bestGlobalScore) < 0) {
-        bestGlobal = best;
-        bestGlobalScore = { ...bestScore };
-        if (bestGlobalScore.rotation === 0 && bestGlobalScore.oldPartner === 0 && bestGlobalScore.oldSeat === 0 && bestGlobalScore.gender === 0 && bestGlobalScore.forbidden === 0 && bestGlobalScore.level === 0) break;
+      for (let t = 0; t < attempts; t++) {
+        const seed = makeInitialAssignment();
+        const { best, bestScore } = improveBySwaps(seed);
+
+        if (compareScore(bestScore, bestGlobalScore) < 0) {
+          bestGlobal = best;
+          bestGlobalScore = { ...bestScore };
+          if (bestGlobalScore.rotation === 0 && bestGlobalScore.oldPartner === 0 && bestGlobalScore.oldSeat === 0 && bestGlobalScore.gender === 0 && bestGlobalScore.forbidden === 0 && bestGlobalScore.level === 0) break;
+        }
       }
     }
 
@@ -4010,12 +4000,12 @@ function renderForbiddenGroupsFromTextarea() {
   });
 
   if (autoFillBtn) autoFillBtn.addEventListener("click", () => { pushUndo("autoFill"); autoFill(); });
-  if (clearBtn) { clearBtn.disabled = true; clearBtn.addEventListener("click", () => {
+  if (clearBtn) { clearBtn.disabled = false; clearBtn.addEventListener("click", () => {
     const ok = window.confirm("정말 초기화할까요?\n배치도/학생/옵션이 초기화됩니다.");
     if (!ok) return;
-    pushUndo("clearAll");
     clearAll();
-    clearAutosaveSnapshot();
+    try { clearAutosaveSnapshot(); } catch (e) {}
+    try { clearAutosaveRestoreAllowed(); } catch (e) {}
     toast("초기화되었습니다.");
   }); }
   if (restoreVoidsBtn) restoreVoidsBtn.addEventListener("click", () => { pushUndo("restoreVoids"); restoreVoids(); });
@@ -4674,42 +4664,19 @@ let _savingStudentsNow = false;
       oldPartnerDetail: new Map(),
     };
 
-    const debug = {
-      currentSignature: null,
-      slotCount: 0,
-      slotsRead: 0,
-      slotsParsed: 0,
-      slotsMatchedSignature: 0,
-      pairSlotsRead: 0,
-      seatHistoryNames: 0,
-      seatHistoryEntries: 0,
-      partnerHistoryPairs: 0,
-      partnerHistoryEntries: 0,
-      sampleMatchedSlots: [],
-      sampleUnmatchedSlots: [],
-      samplePairSlots: [],
-    };
-
     const currentSig = currentLayoutSignature();
-    debug.currentSignature = currentSig;
     const list = loadSlotIndex();
-    debug.slotCount = Array.isArray(list) ? list.length : 0;
     for (const slot of list) {
       const id = String(slot?.id || "");
       if (!id) continue;
-      debug.slotsRead += 1;
       const raw = localStorage.getItem(slotKey(id));
       if (!raw) continue;
       try {
         const snap = JSON.parse(raw);
-        debug.slotsParsed += 1;
         const slotName = String(slot?.name || id);
         const t = Number(snap?.savedAt || Date.now());
-        const sig = snapshotLayoutSignature(snap);
 
-        if (sig === currentSig) {
-          debug.slotsMatchedSignature += 1;
-          if (debug.sampleMatchedSlots.length < 5) debug.sampleMatchedSlots.push(slotName);
+        if (snapshotLayoutSignature(snap) === currentSig) {
           for (const seat of (Array.isArray(snap?.seats) ? snap.seats : [])) {
             if (!seat || seat.void || !seat.name) continue;
             const nm = String(seat.name);
@@ -4719,14 +4686,10 @@ let _savingStudentsNow = false;
             if (!out.oldSeatDetail.has(nm)) out.oldSeatDetail.set(nm, []);
             out.oldSeatDetail.get(nm).push({ seatId: sid, slot: slotName, t });
           }
-        } else {
-          if (debug.sampleUnmatchedSlots.length < 5) debug.sampleUnmatchedSlots.push(`${slotName}`);
         }
 
         const snapKind = snap?.layout?.layoutKind || snap?.seatType || "single";
         if (snapKind === "pair") {
-          debug.pairSlotsRead += 1;
-          if (debug.samplePairSlots.length < 5) debug.samplePairSlots.push(slotName);
           const snapCols = Number(snap?.cols ?? 0);
           const byId = new Map((Array.isArray(snap?.seats) ? snap.seats : []).map(seat => [Number(seat.id), seat]));
           for (const seat of byId.values()) {
@@ -4749,11 +4712,6 @@ let _savingStudentsNow = false;
 
     for (const arr of out.oldSeatDetail.values()) arr.sort((a,b)=>(b.t||0)-(a.t||0));
     for (const arr of out.oldPartnerDetail.values()) arr.sort((a,b)=>(b.t||0)-(a.t||0));
-    debug.seatHistoryNames = out.oldSeatMap.size;
-    debug.seatHistoryEntries = Array.from(out.oldSeatDetail.values()).reduce((n, arr) => n + (Array.isArray(arr) ? arr.length : 0), 0);
-    debug.partnerHistoryPairs = out.oldPartnerSet.size;
-    debug.partnerHistoryEntries = Array.from(out.oldPartnerDetail.values()).reduce((n, arr) => n + (Array.isArray(arr) ? arr.length : 0), 0);
-    out.debug = debug;
     return out;
   }
 
@@ -5258,9 +5216,7 @@ function currentSnapshot() {
     const raw = localStorage.getItem(slotKey(id));
     if (!raw) { toast("저장 데이터가 없어요."); return; }
     try {
-      pushUndo("loadSlot");
       applySnapshot(JSON.parse(raw));
-      updateHistoryButtons();
       toast("불러오기 완료!");
       log("배치도 불러오기 완료");
     } catch { toast("불러오기 실패(데이터 손상)."); }

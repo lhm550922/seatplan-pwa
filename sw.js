@@ -1,4 +1,4 @@
-/* SeatPlan PWA - Service Worker (v2.14-debug)
+/* SeatPlan PWA - Service Worker (v2.13)
    교체용 sw.js (GitHub Pages 포함)
 
    ✅ 변경점
@@ -9,15 +9,15 @@
       (네트워크 실패 시 캐시된 index.html로 fallback)
 */
 
-const CACHE_NAME = 'seatplan-pwa-v214-debug'
+const CACHE_NAME = 'seatplan-pwa-v213'
 
 // 프로젝트 루트 기준(상대경로) - GitHub Pages의 서브경로 배포에도 안전
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=2.14-debug",
-  "./app.js?v=2.14-debug",
-  "./manifest.webmanifest?v=2.14-debug",
+  "./styles.css?v=2.0",
+  "./app.js?v=2.0",
+  "./manifest.webmanifest?v=2.0",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./guide.html",

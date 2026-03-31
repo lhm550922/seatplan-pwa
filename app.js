@@ -65,6 +65,8 @@
   // 학생 명단 영구 보존(v0.92 patch): "학생 입력 > 저장"을 누른 명단을 로컬에 저장해 업데이트/새로고침 후에도 복원
   const LS_STUDENTS_KEY = "seatplan_students_v1";
   let isDemoStudentList = false;
+  const DEBUG_HISTORY_CHECK = true;
+  let lastHistoryDebug = null;
 
   // 임시 작업 자동 복원(페이지 이동 후 돌아와도 유지)
   const AUTOSAVE_KEY = "seatplan_autosave_v1_4";
@@ -294,7 +296,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "2.14";
+  const APP_VERSION = "2.14-debug";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -2122,6 +2124,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
     }
 
     const historicalData = buildHistoricalAvoidanceData();
+    lastHistoryDebug = historicalData && historicalData.debug ? { ...(historicalData.debug || {}) } : null;
     const oldSeatLines = [];
     const oldPartnerLines = [];
     let oldSeatCount = 0;
@@ -2226,13 +2229,33 @@ for (let i = 0; i < orderedIds.length; i += size) {
     const hasOldPartner = (oldPartnerCount > 0);
     const hasOldSeat = (oldSeatCount > 0);
 
+    const debugOut = [];
+    if (DEBUG_HISTORY_CHECK && lastHistoryDebug) {
+      const d = lastHistoryDebug;
+      debugOut.push(`[디버그] 저장목록 ${d.slotCount ?? 0}개 / 읽은 슬롯 ${d.slotsRead ?? 0}개 / 파싱 성공 ${d.slotsParsed ?? 0}개`);
+      debugOut.push(`[디버그] 현재 배치와 같은 구조로 읽힌 저장본 ${d.slotsMatchedSignature ?? 0}개 / 2인 책상 저장본 ${d.pairSlotsRead ?? 0}개`);
+      debugOut.push(`[디버그] 이전 자리 기록 학생 ${d.seatHistoryNames ?? 0}명 / 항목 ${d.seatHistoryEntries ?? 0}개`);
+      debugOut.push(`[디버그] 이전 짝 기록 ${d.partnerHistoryPairs ?? 0}쌍 / 항목 ${d.partnerHistoryEntries ?? 0}개`);
+      debugOut.push(`[디버그] 이번 결과: 로테이션 ${rotationCount}명 / 이전 짝 ${oldPartnerCount}건 / 이전 자리 ${oldSeatCount}명`);
+      if (Array.isArray(d.sampleMatchedSlots) && d.sampleMatchedSlots.length) debugOut.push(`[디버그] 같은 구조 저장본 예시: ${d.sampleMatchedSlots.join(", ")}`);
+      if (Array.isArray(d.sampleUnmatchedSlots) && d.sampleUnmatchedSlots.length) debugOut.push(`[디버그] 구조 불일치 저장본 예시: ${d.sampleUnmatchedSlots.join(", ")}`);
+      if (Array.isArray(d.samplePairSlots) && d.samplePairSlots.length) debugOut.push(`[디버그] 2인 책상 저장본 예시: ${d.samplePairSlots.join(", ")}`);
+    }
+
     if (!hasForbidden && !hasRotation && !hasOldPartner && !hasOldSeat) {
-      violationsBar.style.display = "none";
-      violationsBar.textContent = "";
+      if (debugOut.length) {
+        violationsBar.style.display = "block";
+        violationsBar.textContent = debugOut.join("
+");
+      } else {
+        violationsBar.style.display = "none";
+        violationsBar.textContent = "";
+      }
       return;
     }
 
     const out = [];
+    if (debugOut.length) out.push(...debugOut, "");
     if (hasForbidden) {
       const lines = violations.map(
         (v) => {
@@ -3390,6 +3413,7 @@ function renderForbiddenGroupsFromTextarea() {
     }
 
     const historicalData = buildHistoricalAvoidanceData();
+    lastHistoryDebug = historicalData && historicalData.debug ? { ...(historicalData.debug || {}) } : null;
     const avoidOldSeatOn = !!(avoidOldSeat && avoidOldSeat.checked);
     const avoidOldPartnerOn = !!(layoutKind === "pair" && avoidOldPartner && avoidOldPartner.checked);
     const oldSeatMap = historicalData.oldSeatMap;
@@ -4651,19 +4675,42 @@ let _savingStudentsNow = false;
       oldPartnerDetail: new Map(),
     };
 
+    const debug = {
+      currentSignature: null,
+      slotCount: 0,
+      slotsRead: 0,
+      slotsParsed: 0,
+      slotsMatchedSignature: 0,
+      pairSlotsRead: 0,
+      seatHistoryNames: 0,
+      seatHistoryEntries: 0,
+      partnerHistoryPairs: 0,
+      partnerHistoryEntries: 0,
+      sampleMatchedSlots: [],
+      sampleUnmatchedSlots: [],
+      samplePairSlots: [],
+    };
+
     const currentSig = currentLayoutSignature();
+    debug.currentSignature = currentSig;
     const list = loadSlotIndex();
+    debug.slotCount = Array.isArray(list) ? list.length : 0;
     for (const slot of list) {
       const id = String(slot?.id || "");
       if (!id) continue;
+      debug.slotsRead += 1;
       const raw = localStorage.getItem(slotKey(id));
       if (!raw) continue;
       try {
         const snap = JSON.parse(raw);
+        debug.slotsParsed += 1;
         const slotName = String(slot?.name || id);
         const t = Number(snap?.savedAt || Date.now());
+        const sig = snapshotLayoutSignature(snap);
 
-        if (snapshotLayoutSignature(snap) === currentSig) {
+        if (sig === currentSig) {
+          debug.slotsMatchedSignature += 1;
+          if (debug.sampleMatchedSlots.length < 5) debug.sampleMatchedSlots.push(slotName);
           for (const seat of (Array.isArray(snap?.seats) ? snap.seats : [])) {
             if (!seat || seat.void || !seat.name) continue;
             const nm = String(seat.name);
@@ -4673,10 +4720,14 @@ let _savingStudentsNow = false;
             if (!out.oldSeatDetail.has(nm)) out.oldSeatDetail.set(nm, []);
             out.oldSeatDetail.get(nm).push({ seatId: sid, slot: slotName, t });
           }
+        } else {
+          if (debug.sampleUnmatchedSlots.length < 5) debug.sampleUnmatchedSlots.push(`${slotName}`);
         }
 
         const snapKind = snap?.layout?.layoutKind || snap?.seatType || "single";
         if (snapKind === "pair") {
+          debug.pairSlotsRead += 1;
+          if (debug.samplePairSlots.length < 5) debug.samplePairSlots.push(slotName);
           const snapCols = Number(snap?.cols ?? 0);
           const byId = new Map((Array.isArray(snap?.seats) ? snap.seats : []).map(seat => [Number(seat.id), seat]));
           for (const seat of byId.values()) {
@@ -4699,6 +4750,11 @@ let _savingStudentsNow = false;
 
     for (const arr of out.oldSeatDetail.values()) arr.sort((a,b)=>(b.t||0)-(a.t||0));
     for (const arr of out.oldPartnerDetail.values()) arr.sort((a,b)=>(b.t||0)-(a.t||0));
+    debug.seatHistoryNames = out.oldSeatMap.size;
+    debug.seatHistoryEntries = Array.from(out.oldSeatDetail.values()).reduce((n, arr) => n + (Array.isArray(arr) ? arr.length : 0), 0);
+    debug.partnerHistoryPairs = out.oldPartnerSet.size;
+    debug.partnerHistoryEntries = Array.from(out.oldPartnerDetail.values()).reduce((n, arr) => n + (Array.isArray(arr) ? arr.length : 0), 0);
+    out.debug = debug;
     return out;
   }
 

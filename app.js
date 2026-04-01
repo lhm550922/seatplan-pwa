@@ -30,6 +30,7 @@
   const redoBtn = $("redoBtn");
   const downloadPngBtn = $("downloadPngBtn");
   const printBtn = $("printBtn");
+  const toggleSecondaryMenuBtn = $("toggleSecondaryMenuBtn");
 
   const openLayoutBtn = $("openLayoutBtn");
   const openStudentsBtn = $("openStudentsBtn");
@@ -37,6 +38,8 @@
   const openSaveBtn = $("openSaveBtn");
   const openGuideBtn = $("openGuideBtn");
   const demoBtn = $("demoBtn");
+  const secondaryMenuLeft = $("secondaryMenuLeft");
+  const secondaryMenuRight = $("secondaryMenuRight");
 
   const layoutModal = $("layoutModal");
   const studentsModal = $("studentsModal");
@@ -138,6 +141,22 @@
   function canRestoreAutosaveThisSession() {
     try { return sessionStorage.getItem(AUTOSAVE_RESTORE_SESSION_KEY) === "1"; } catch (e) { return false; }
   }
+  const SECONDARY_MENU_HIDDEN_KEY = "seatplan_secondary_menu_hidden_v1";
+  function setSecondaryMenuHidden(hidden) {
+    try {
+      document.body.classList.toggle("secondaryMenuHidden", !!hidden);
+      if (toggleSecondaryMenuBtn) {
+        toggleSecondaryMenuBtn.textContent = hidden ? "▾" : "▴";
+        toggleSecondaryMenuBtn.setAttribute("aria-expanded", hidden ? "false" : "true");
+        toggleSecondaryMenuBtn.title = hidden ? "보조 메뉴 보기" : "보조 메뉴 숨기기";
+      }
+      localStorage.setItem(SECONDARY_MENU_HIDDEN_KEY, hidden ? "1" : "0");
+    } catch (e) {}
+  }
+  function loadSecondaryMenuHidden() {
+    try { return localStorage.getItem(SECONDARY_MENU_HIDDEN_KEY) === "1"; } catch (e) { return false; }
+  }
+
 
   // autosave는 너무 자주 쓰면 부담이 되므로 간단히 디바운스 처리
   let _autosaveTimer = null;
@@ -208,8 +227,21 @@
   const useRotation = $("useRotation");
   const avoidOldSeat = $("avoidOldSeat");
   const avoidOldPartner = $("avoidOldPartner");
-  const resetHistoryBtn = $("resetHistoryBtn");
-  const viewHistoryBtn = $("viewHistoryBtn");
+  const rotationRefWrap = $("rotationRefWrap");
+  const rotationRefToggle = $("rotationRefToggle");
+  const rotationRefPanel = $("rotationRefPanel");
+  const rotationRefList = $("rotationRefList");
+  const rotationRefSummary = $("rotationRefSummary");
+  const partnerRefWrap = $("partnerRefWrap");
+  const partnerRefToggle = $("partnerRefToggle");
+  const partnerRefPanel = $("partnerRefPanel");
+  const partnerRefList = $("partnerRefList");
+  const partnerRefSummary = $("partnerRefSummary");
+  const seatRefWrap = $("seatRefWrap");
+  const seatRefToggle = $("seatRefToggle");
+  const seatRefPanel = $("seatRefPanel");
+  const seatRefList = $("seatRefList");
+  const seatRefSummary = $("seatRefSummary");
 
   const groupMode = $("groupMode");
   const groupModeManual = $("groupModeManual");
@@ -294,7 +326,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "2.15";
+  const APP_VERSION = "2.2";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -1660,6 +1692,8 @@ for (let i = 0; i < orderedIds.length; i += size) {
     }
 
     syncOptionEnables();
+    renderReferenceSelectionPanels();
+    updateReferencePanelVisibility();
     computeViolations();
     renderGrid();
     log(`책상 배열 적용: ${layoutKind} / ${cols}×${rows}`);
@@ -2026,7 +2060,8 @@ for (let i = 0; i < orderedIds.length; i += size) {
       const wantFront = !!(rotOn && rotateFront && rotateFront.checked);
       const wantBack  = !!(rotOn && rotateBack && rotateBack.checked);
       if (wantFront || wantBack) {
-        const rotationLedger = loadRotationLedger();
+        const selectedRotationSlotIds = getEffectiveReferenceSlotIds('rotation');
+    const rotationLedger = getFilteredRotationLedger(selectedRotationSlotIds);
         const slotIndexList = loadSlotIndex ? loadSlotIndex() : [];
         const slotNameById = new Map();
         try { for (const s of slotIndexList) slotNameById.set(String(s.id), s.name); } catch(e) {}
@@ -2113,23 +2148,21 @@ for (let i = 0; i < orderedIds.length; i += size) {
           }
         }
 
-        if (rotationCount > 0) {
-          rotationLines.unshift("※ 저장된 배치도 전체 기록 기준으로 회피하면, 좌석 수에 따라 100% 회피가 불가능할 수 있어요.");
-        }
       }
     } catch(e) {
       // ignore
     }
 
-    const historicalData = buildHistoricalAvoidanceData();
+    const historicalSeatData = buildHistoricalAvoidanceData(getEffectiveReferenceSlotIds('seat'));
+    const historicalPartnerData = buildHistoricalAvoidanceData(getEffectiveReferenceSlotIds('partner'));
     const oldSeatLines = [];
     const oldPartnerLines = [];
     let oldSeatCount = 0;
     let oldPartnerCount = 0;
     try {
       if (avoidOldSeat && avoidOldSeat.checked) {
-        const oldSeatMap = historicalData.oldSeatMap;
-        const oldSeatDetail = historicalData.oldSeatDetail;
+        const oldSeatMap = historicalSeatData.oldSeatMap;
+        const oldSeatDetail = historicalSeatData.oldSeatDetail;
         for (const s of seats) {
           if (!s || s.void || !s.name) continue;
           const usedSeats = oldSeatMap.get(String(s.name));
@@ -2141,8 +2174,8 @@ for (let i = 0; i < orderedIds.length; i += size) {
         }
       }
       if (layoutKind === "pair" && avoidOldPartner && avoidOldPartner.checked) {
-        const oldPartnerSet = historicalData.oldPartnerSet;
-        const oldPartnerDetail = historicalData.oldPartnerDetail;
+        const oldPartnerSet = historicalPartnerData.oldPartnerSet;
+        const oldPartnerDetail = historicalPartnerData.oldPartnerDetail;
         const byId = new Map(seats.filter(s => s && !s.void).map(s => [Number(s.id), s]));
         const seen = new Set();
         for (const s of byId.values()) {
@@ -2308,6 +2341,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
     if (rotateFront) rotateFront.disabled = !rotOn;
     if (rotateBack) rotateBack.disabled = !rotOn;
     if (avoidOldPartner) avoidOldPartner.disabled = (layoutKind !== "pair");
+    updateReferencePanelVisibility();
 
     const balanceEl = document.getElementById("balanceLevels");
     const groupModeEl = document.getElementById("groupMode");
@@ -3376,7 +3410,8 @@ function renderForbiddenGroupsFromTextarea() {
     const avoidFrontRotation = !!(rotOn && rotateFront && rotateFront.checked);
     const avoidBackRotation = !!(rotOn && rotateBack && rotateBack.checked);
 
-    const rotationLedger = loadRotationLedger();
+    const selectedRotationSlotIds = getEffectiveReferenceSlotIds('rotation');
+    const rotationLedger = getFilteredRotationLedger(selectedRotationSlotIds);
     const slotIndexList = loadSlotIndex ? loadSlotIndex() : [];
     const slotNameById = new Map();
     try { for (const s of slotIndexList) slotNameById.set(String(s.id), s.name); } catch(e) {}
@@ -3426,13 +3461,14 @@ function renderForbiddenGroupsFromTextarea() {
       backSeatSet.add(backRowIndex*cols + cc);
     }
 
-    const historicalData = buildHistoricalAvoidanceData();
     const avoidOldSeatOn = !!(avoidOldSeat && avoidOldSeat.checked);
     const avoidOldPartnerOn = !!(layoutKind === "pair" && avoidOldPartner && avoidOldPartner.checked);
-    const oldSeatMap = historicalData.oldSeatMap;
-    const oldSeatDetail = historicalData.oldSeatDetail;
-    const oldPartnerSet = historicalData.oldPartnerSet;
-    const oldPartnerDetail = historicalData.oldPartnerDetail;
+    const historicalSeatData = buildHistoricalAvoidanceData(getEffectiveReferenceSlotIds('seat'));
+    const historicalPartnerData = buildHistoricalAvoidanceData(getEffectiveReferenceSlotIds('partner'));
+    const oldSeatMap = historicalSeatData.oldSeatMap;
+    const oldSeatDetail = historicalSeatData.oldSeatDetail;
+    const oldPartnerSet = historicalPartnerData.oldPartnerSet;
+    const oldPartnerDetail = historicalPartnerData.oldPartnerDetail;
 
     const allowedForSeat = (name, seatId) => {
       const seat = getSeat(seatId);
@@ -4041,25 +4077,6 @@ function renderForbiddenGroupsFromTextarea() {
     log("모둠별 수준 분산 옵션 변경");
   });
 
-  if (viewHistoryBtn) viewHistoryBtn.addEventListener("click", () => {
-    try {
-      const txt = buildRotationHistoryText();
-      window.alert(txt);
-    } catch {
-      toast("기록을 불러오지 못했어요.");
-    }
-  });
-
-  if (resetHistoryBtn) resetHistoryBtn.addEventListener("click", () => {
-    const ok = window.confirm("정말 저장된 모든 배치도의 로테이션 기록을 초기화할까요?\n(이 작업은 되돌릴 수 없어요.)");
-    if (!ok) return;
-
-    try { localStorage.removeItem(ROTATION_LEDGER_KEY); } catch {}
-    history = {};
-    log("로테이션 기록(저장 배치도 기준) 초기화 완료.");
-    toast("로테이션 기록이 초기화되었습니다.");
-  });
-
   if (toggleOrientationBtn) toggleOrientationBtn.addEventListener("click", () => {
     uiMode = "none";
     selectedSeatId = null;
@@ -4656,7 +4673,7 @@ let _savingStudentsNow = false;
     return (col % 2 === 0) ? (id + 1) : (id - 1);
   }
 
-  function buildHistoricalAvoidanceData() {
+  function buildHistoricalAvoidanceData(slotIds = null) {
     const out = {
       oldSeatMap: new Map(),
       oldSeatDetail: new Map(),
@@ -4669,7 +4686,9 @@ let _savingStudentsNow = false;
     // 복잡한 배치에서도 동일한 좌석 번호 기준으로 일관되게 비교되도록
     // 레이아웃 시그니처 일치 여부로 필터링하지 않는다.
     const list = loadSlotIndex();
+    const allowedIds = Array.isArray(slotIds) && slotIds.length ? new Set(slotIds.map(v => String(v))) : null;
     for (const slot of list) {
+      if (allowedIds && !allowedIds.has(String(slot?.id || ""))) continue;
       const id = String(slot?.id || "");
       if (!id) continue;
       const raw = localStorage.getItem(slotKey(id));
@@ -4720,7 +4739,111 @@ let _savingStudentsNow = false;
   // ===== Save Slots =====
   const SLOT_INDEX_KEY = "seatplan_slots_v015";
   const ROTATION_LEDGER_KEY = "seatplan_rotation_ledger_v1";
+  const REF_SELECTION_KEYS = {
+    rotation: "seatplan_ref_slots_rotation_v217",
+    partner: "seatplan_ref_slots_partner_v217",
+    seat: "seatplan_ref_slots_seat_v217",
+  };
   function slotKey(id) { return `seatplan_slot_${id}_v015`; }
+
+  function loadRefSelection(type) {
+    const key = REF_SELECTION_KEYS[type];
+    if (!key) return [];
+    try {
+      const raw = localStorage.getItem(key);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr.map(v => String(v)) : [];
+    } catch { return []; }
+  }
+  function saveRefSelection(type, ids) {
+    const key = REF_SELECTION_KEYS[type];
+    if (!key) return;
+    try { localStorage.setItem(key, JSON.stringify(Array.from(new Set((ids || []).map(v => String(v)))))); } catch {}
+  }
+  function getSavedSlotItems() {
+    return loadSlotIndex().map(s => ({ id: String(s.id), name: String(s.name || s.id) }));
+  }
+  function getEffectiveReferenceSlotIds(type) {
+    const items = getSavedSlotItems();
+    const allIds = items.map(x => x.id);
+    const existing = new Set(allIds);
+    const selected = loadRefSelection(type).filter(id => existing.has(String(id)));
+    return selected.length ? selected : allIds;
+  }
+  function getFilteredRotationLedger(slotIds) {
+    const ledger = loadRotationLedger();
+    if (!Array.isArray(slotIds) || !slotIds.length) return ledger;
+    const allow = new Set(slotIds.map(v => String(v)));
+    const out = {};
+    for (const [id, val] of Object.entries(ledger || {})) {
+      if (allow.has(String(id))) out[id] = val;
+    }
+    return out;
+  }
+  function closeRefPanel(toggleEl, panelEl) {
+    if (toggleEl) toggleEl.setAttribute("aria-expanded", "false");
+    if (panelEl) panelEl.hidden = true;
+  }
+  function openRefPanel(toggleEl, panelEl) {
+    if (toggleEl) toggleEl.setAttribute("aria-expanded", "true");
+    if (panelEl) panelEl.hidden = false;
+  }
+  function updateRefSummary(type, summaryEl) {
+    if (!summaryEl) return;
+    const items = getSavedSlotItems();
+    const allIds = items.map(x => x.id);
+    const selected = loadRefSelection(type).filter(id => allIds.includes(String(id)));
+    if (!items.length) { summaryEl.textContent = "저장된 배치도 없음"; return; }
+    if (!selected.length || selected.length === items.length) {
+      summaryEl.textContent = "전체 저장 배치도 기준";
+      return;
+    }
+    const names = items.filter(x => selected.includes(x.id)).map(x => x.name);
+    summaryEl.textContent = names.length <= 2 ? names.join(', ') : `${names.slice(0,2).join(', ')} 외 ${names.length-2}개`;
+  }
+  function renderRefList(type, listEl, summaryEl) {
+    if (!listEl) return;
+    const items = getSavedSlotItems();
+    const allIds = items.map(x => x.id);
+    const selected = new Set(loadRefSelection(type).filter(id => allIds.includes(String(id))));
+    listEl.innerHTML = '';
+    if (!items.length) {
+      const empty = document.createElement('div');
+      empty.className = 'refPickerEmpty';
+      empty.textContent = '저장된 배치도가 없어요.';
+      listEl.appendChild(empty);
+      updateRefSummary(type, summaryEl);
+      return;
+    }
+    for (const item of items) {
+      const label = document.createElement('label');
+      label.className = 'refPickerItem';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = selected.has(item.id);
+      cb.dataset.refType = type;
+      cb.dataset.refId = item.id;
+      const span = document.createElement('span');
+      span.textContent = item.name;
+      label.appendChild(cb);
+      label.appendChild(span);
+      listEl.appendChild(label);
+    }
+    updateRefSummary(type, summaryEl);
+  }
+  function renderReferenceSelectionPanels() {
+    renderRefList('rotation', rotationRefList, rotationRefSummary);
+    renderRefList('partner', partnerRefList, partnerRefSummary);
+    renderRefList('seat', seatRefList, seatRefSummary);
+  }
+  function updateReferencePanelVisibility() {
+    if (rotationRefWrap) rotationRefWrap.hidden = !(useRotation && useRotation.checked);
+    if (partnerRefWrap) partnerRefWrap.hidden = !(avoidOldPartner && avoidOldPartner.checked);
+    if (seatRefWrap) seatRefWrap.hidden = !(avoidOldSeat && avoidOldSeat.checked);
+    if (rotationRefWrap && rotationRefWrap.hidden) closeRefPanel(rotationRefToggle, rotationRefPanel);
+    if (partnerRefWrap && partnerRefWrap.hidden) closeRefPanel(partnerRefToggle, partnerRefPanel);
+    if (seatRefWrap && seatRefWrap.hidden) closeRefPanel(seatRefToggle, seatRefPanel);
+  }
 
   function loadRotationLedger() {
     try {
@@ -4776,12 +4899,14 @@ let _savingStudentsNow = false;
     return { front, back };
   }
 
-  function buildHistoryFromLedger(ledger) {
+  function buildHistoryFromLedger(ledger, slotIds = null) {
     const h = {};
     const ensure = (name) => { if (!h[name]) h[name] = { front: 0, back: 0 }; };
 
     try {
+      const allowedIds = Array.isArray(slotIds) && slotIds.length ? new Set(slotIds.map(v => String(v))) : null;
       for (const slotId of Object.keys(ledger || {})) {
+        if (allowedIds && !allowedIds.has(String(slotId))) continue;
         const entry = ledger[slotId];
         if (!entry) continue;
         const fr = Array.isArray(entry.front) ? entry.front : [];
@@ -5022,6 +5147,7 @@ function updateRotationLedgerForSlot(slotId) {
 
     // 최신 항목이 아래로 쌓이므로, 목록이 길어지면 기본적으로 아래쪽(최신)으로 보이게
     try { slotList.scrollTop = slotList.scrollHeight; } catch {}
+    renderReferenceSelectionPanels();
   }
 
   if (slotSelect) {
@@ -5038,6 +5164,8 @@ function updateRotationLedgerForSlot(slotId) {
     if (slotSelect && l[l.length - 1]) slotSelect.value = l[l.length - 1].id;
     renderSlotList();
     updateSlotActionEnables();
+    renderReferenceSelectionPanels();
+    updateReferencePanelVisibility();
   }
 
   function snapshotForHistory() {
@@ -5272,16 +5400,68 @@ function currentSnapshot() {
 
   if (useRotation) useRotation.addEventListener("change", () => {
     syncOptionEnables();
+    updateReferencePanelVisibility();
+    if (useRotation.checked) {
+      if (rotateFront && !rotateFront.checked) rotateFront.checked = true;
+      if (rotateBack && !rotateBack.checked) rotateBack.checked = true;
+      openRefPanel(rotationRefToggle, rotationRefPanel);
+    }
     computeViolations();
     renderGrid();
   });
   if (avoidOldSeat) avoidOldSeat.addEventListener("change", () => {
+    updateReferencePanelVisibility();
+    if (avoidOldSeat.checked) openRefPanel(seatRefToggle, seatRefPanel);
     computeViolations();
     renderGrid();
   });
   if (avoidOldPartner) avoidOldPartner.addEventListener("change", () => {
+    updateReferencePanelVisibility();
+    if (avoidOldPartner.checked) openRefPanel(partnerRefToggle, partnerRefPanel);
     computeViolations();
     renderGrid();
+  });
+
+  if (toggleSecondaryMenuBtn) {
+    toggleSecondaryMenuBtn.addEventListener("click", () => {
+      setSecondaryMenuHidden(!document.body.classList.contains("secondaryMenuHidden"));
+    });
+  }
+  setSecondaryMenuHidden(loadSecondaryMenuHidden());
+
+  [[rotationRefToggle, rotationRefPanel], [partnerRefToggle, partnerRefPanel], [seatRefToggle, seatRefPanel]].forEach(([btn, panel]) => {
+    if (!btn || !panel) return;
+    btn.addEventListener('click', () => {
+      const isOpen = btn.getAttribute('aria-expanded') === 'true';
+      if (isOpen) closeRefPanel(btn, panel); else openRefPanel(btn, panel);
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    const actionBtn = e.target.closest('[data-ref-action]');
+    if (actionBtn) {
+      const type = actionBtn.dataset.refType;
+      const action = actionBtn.dataset.refAction;
+      const items = getSavedSlotItems();
+      const ids = items.map(x => x.id);
+      if (action === 'all') saveRefSelection(type, ids);
+      else if (action === 'clear') saveRefSelection(type, []);
+      renderReferenceSelectionPanels();
+      computeViolations();
+      renderGrid();
+      return;
+    }
+    const cb = e.target.closest('.refPickerItem input[type="checkbox"]');
+    if (cb) {
+      const type = cb.dataset.refType;
+      const refId = cb.dataset.refId;
+      const set = new Set(loadRefSelection(type));
+      if (cb.checked) set.add(refId); else set.delete(refId);
+      saveRefSelection(type, Array.from(set));
+      renderReferenceSelectionPanels();
+      computeViolations();
+      renderGrid();
+    }
   });
 
   // ===== Start =====
@@ -5289,6 +5469,8 @@ function currentSnapshot() {
     registerSW();
     initSlots();
     initRotationLedgerFromSavedSlotsIfMissing();
+    renderReferenceSelectionPanels();
+    updateReferencePanelVisibility();
     updateOrientationButtonLabel();
     applyHintVisibility();
     openIncomingShareModalFromUrl();

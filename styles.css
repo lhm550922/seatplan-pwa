@@ -1026,6 +1026,35 @@ select{
   line-height:1.25;
 }
 
+.helpIcon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:20px;
+  height:20px;
+  border-radius:999px;
+  background:rgba(59,130,246,.14);
+  border:1px solid rgba(96,165,250,.28);
+  color:#93c5fd;
+  font-size:12px;
+  cursor:help;
+  transform: translateY(-1px);
+}
+.sectionInlineNote{
+  font-size:12.5px;
+  color: rgba(185,195,212,.92);
+  font-weight:800;
+  line-height:1.25;
+}
+.rotationChildToggle{
+  font-size:14px;
+  font-weight:900;
+  color:#b9c3d4;
+}
+.rotationChildToggle input{
+  accent-color:#9ca3af;
+}
+
 /* 섹션 제목 아래 설명(아랫줄) */
 .sectionHeadToggle .descBlock{
   flex: 0 0 100%;
@@ -1478,4 +1507,30 @@ select{
 select option{
   color:#111827;
   background:#f3f4f6;
+}
+
+
+.refPickerWrap{margin-top:10px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(255,255,255,.03);overflow:hidden}
+.refPickerToggle{width:100%;display:flex;align-items:center;gap:10px;padding:11px 12px;background:transparent;border:0;color:#eef3ff;font-weight:700;cursor:pointer;text-align:left}
+.refPickerHint{min-width:0;flex:1 1 auto;color:#b9c3d4;font-size:12.5px;line-height:1.45;font-weight:600}
+.refPickerSummary{margin-left:auto;flex:0 0 auto;font-size:12px;font-weight:600;color:#eef3ff;white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+.refPickerCaret{flex:0 0 auto;font-size:13px;opacity:.8}
+.refPickerToggle[aria-expanded="true"] .refPickerCaret{transform:rotate(180deg)}
+.refPickerPanel{padding:10px 12px 12px;border-top:1px solid rgba(255,255,255,.08)}
+.refPickerActions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.refPickerActions.bottom{justify-content:flex-start}
+.refPickerList{max-height:154px;overflow:auto;display:flex;flex-direction:column;gap:6px;padding:4px 1px 0}
+.refPickerItem{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.04);font-size:13px;color:#eef3ff}
+.refPickerItem input{accent-color:#7cc6ff}
+.refPickerEmpty{padding:10px;color:#b9c3d4;font-size:12.5px}
+
+.menuFoldBtn{
+  min-width:44px;
+  padding:0 12px;
+  font-size:18px;
+  line-height:1;
+}
+.secondaryMenuHidden #secondaryMenuLeft,
+.secondaryMenuHidden #secondaryMenuRight{
+  display:none !important;
 }

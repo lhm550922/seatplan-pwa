@@ -16,7 +16,7 @@
   <header class="header">
     <div class="headerTop">
       <div class="headerBrand">
-        <h1>자리배치 PWA <span style="opacity:.65;font-weight:900">v2.15</span></h1>
+        <h1>자리배치 PWA <span style="opacity:.65;font-weight:900">v2.21</span></h1>
         <p class="sub">🧑‍🏫 담임교사를 위한 자리배치 도구</p>
       </div>
       <nav class="topNav" aria-label="사이트 메뉴">
@@ -70,7 +70,7 @@
             <button id="autoFillBtn" class="required">자동 배치★</button>
           </div>
 
-          <div class="menuRow menuRowModes">
+          <div class="menuRow menuRowModes" id="secondaryMenuLeft">
             <button id="modeGenderBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">👦👧</span><span class="btnLabel">성별 지정</span></button>
             <button id="modePinBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">📌</span><span class="btnLabel">고정 좌석</span></button>
             <button id="openOptionsBtn" class="ghost"><span class="btnEmoji" aria-hidden="true">⚙️</span><span class="btnLabel">세부 옵션</span></button>
@@ -85,9 +85,10 @@
             <button id="openSaveBtn" class="smallBtn">저장/불러오기</button>
             <button id="downloadPngBtn" class="smallBtn">이미지 다운로드</button>
             <button id="printBtn" class="smallBtn">인쇄</button>
+            <button id="toggleSecondaryMenuBtn" class="smallBtn menuFoldBtn" type="button" aria-expanded="true" title="보조 메뉴 숨기기">▴</button>
           </div>
 
-          <div class="menuRow menuRowRight menuRowToggles">
+          <div class="menuRow menuRowRight menuRowToggles" id="secondaryMenuRight">
             <div id="displayPanelHost" class="displayHost">
               <div class="displayPanel">
                 <label class="toggle"><input id="showGroups" type="checkbox"> 모둠 번호 표시</label>
@@ -356,17 +357,26 @@
             <label class="sectionHeadToggle">
               <input id="useRotation" type="checkbox" />
               <span class="sectionTitle">맨 앞줄/맨 뒷줄 로테이션</span>
-              <span class="sectionHeadDescInline">-배치도 저장 시 맨 앞/ 맨 뒤 학생들을 기록하여 매월 골고루 배치해요</span>
+              <span class="helpIcon" title="선택한 저장 배치도를 기준으로 맨 앞줄/맨 뒷줄 학생이 겹치지 않도록 회피해요.">💡</span>
             </label>
           </div>
-          <div class="row">
-            <label class="toggle"><input id="rotateFront" type="checkbox" /> 맨 앞줄 로테이션 기록</label>
-            <label class="toggle"><input id="rotateBack" type="checkbox" /> 맨 뒷줄 로테이션 기록</label>
-            <button id="viewHistoryBtn" class="ghost smallBtn" type="button">기록 보기</button>
-            <button id="resetHistoryBtn" class="ghost smallBtn" type="button">기록 초기화</button>
+          <div id="rotationDetailRow" class="row">
+            <label class="toggle rotationChildToggle"><input id="rotateFront" type="checkbox" /> 맨 앞줄 로테이션</label>
+            <label class="toggle rotationChildToggle"><input id="rotateBack" type="checkbox" /> 맨 뒷줄 로테이션</label>
           </div>
-          <div class="subDesc" style="margin-top:6px; color:#b9c3d4; font-size:12.5px;">
-            ※ 저장된 배치도 전체 기록을 기준으로 회피하면, 좌석 수/기록 누적에 따라 100% 회피가 불가능할 수 있어요.
+          <div id="rotationRefWrap" class="refPickerWrap" hidden>
+            <button id="rotationRefToggle" class="refPickerToggle" type="button" aria-expanded="false">
+              <span class="refPickerHint">선택한 배치도들의 맨 앞줄/맨 뒷줄과 중복되지 않도록 자리 배치합니다.</span>
+              <span id="rotationRefSummary" class="refPickerSummary">전체 저장 배치도 기준</span>
+              <span class="refPickerCaret">▾</span>
+            </button>
+            <div id="rotationRefPanel" class="refPickerPanel" hidden>
+              <div id="rotationRefList" class="refPickerList"></div>
+              <div class="refPickerActions bottom">
+                <button type="button" class="ghost smallBtn" data-ref-action="all" data-ref-type="rotation">전체 선택</button>
+                <button type="button" class="ghost smallBtn" data-ref-action="clear" data-ref-type="rotation">전체 해제</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -377,11 +387,23 @@
             <label class="sectionHeadToggle">
               <input id="avoidOldPartner" type="checkbox" />
               <span class="sectionTitle">예전 짝꿍 중복 회피</span>
-              <span class="sectionHeadDescInline">-이전에 같은 짝이었던 학생이 다시 짝이 되지 않도록 최대한 회피해요</span>
+              <span class="helpIcon" title="선택한 저장 배치도를 기준으로 같은 짝꿍이 다시 나오지 않도록 회피해요.">💡</span>
+              <span class="sectionInlineNote">(책상 배열에서 2인 책상 선택했을 경우만 가능합니다.)</span>
             </label>
           </div>
-          <div class="subDesc" style="margin-top:6px; color:#b9c3d4; font-size:12.5px;">
-            책상 배열에서 2인 책상 선택했을 경우만 가능합니다.
+          <div id="partnerRefWrap" class="refPickerWrap" hidden>
+            <button id="partnerRefToggle" class="refPickerToggle" type="button" aria-expanded="false">
+              <span class="refPickerHint">선택한 배치도들의 짝꿍과 중복되지 않도록 자리 배치합니다.</span>
+              <span id="partnerRefSummary" class="refPickerSummary">전체 저장 배치도 기준</span>
+              <span class="refPickerCaret">▾</span>
+            </button>
+            <div id="partnerRefPanel" class="refPickerPanel" hidden>
+              <div id="partnerRefList" class="refPickerList"></div>
+              <div class="refPickerActions bottom">
+                <button type="button" class="ghost smallBtn" data-ref-action="all" data-ref-type="partner">전체 선택</button>
+                <button type="button" class="ghost smallBtn" data-ref-action="clear" data-ref-type="partner">전체 해제</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -392,8 +414,22 @@
             <label class="sectionHeadToggle">
               <input id="avoidOldSeat" type="checkbox" />
               <span class="sectionTitle">예전 자리 중복 회피</span>
-              <span class="sectionHeadDescInline">-저장된 배치도에서 앉았던 같은 자리 번호를 다시 피하도록 배치해요</span>
+              <span class="helpIcon" title="선택한 저장 배치도에서 같은 학생이 같은 좌석 번호에 다시 앉지 않도록 회피해요.">💡</span>
             </label>
+          </div>
+          <div id="seatRefWrap" class="refPickerWrap" hidden>
+            <button id="seatRefToggle" class="refPickerToggle" type="button" aria-expanded="false">
+              <span class="refPickerHint">선택한 배치도들의 자리와 중복되지 않도록 배치합니다.</span>
+              <span id="seatRefSummary" class="refPickerSummary">전체 저장 배치도 기준</span>
+              <span class="refPickerCaret">▾</span>
+            </button>
+            <div id="seatRefPanel" class="refPickerPanel" hidden>
+              <div id="seatRefList" class="refPickerList"></div>
+              <div class="refPickerActions bottom">
+                <button type="button" class="ghost smallBtn" data-ref-action="all" data-ref-type="seat">전체 선택</button>
+                <button type="button" class="ghost smallBtn" data-ref-action="clear" data-ref-type="seat">전체 해제</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

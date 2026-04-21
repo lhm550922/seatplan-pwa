@@ -326,7 +326,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "2.22.1";
+  const APP_VERSION = "2.3";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -2079,40 +2079,10 @@ for (let i = 0; i < orderedIds.length; i += size) {
       const wantBack  = !!(rotOn && rotateBack && rotateBack.checked);
       if (wantFront || wantBack) {
         const selectedRotationSlotIds = getEffectiveReferenceSlotIds('rotation');
-    const rotationLedger = getFilteredRotationLedger(selectedRotationSlotIds);
-        const slotIndexList = loadSlotIndex ? loadSlotIndex() : [];
-        const slotNameById = new Map();
-        try { for (const s of slotIndexList) slotNameById.set(String(s.id), s.name); } catch(e) {}
-
-        const rotationDetail = new Map(); // name -> { front:[{slot,t}], back:[{slot,t}] }
-        const bannedFrontNames = new Set();
-        const bannedBackNames = new Set();
-        for (const slotId of Object.keys(rotationLedger || {})) {
-          const e = rotationLedger[slotId];
-          if (!e) continue;
-          const slotName = slotNameById.get(String(slotId)) || String(slotId);
-          const t = Number(e.t || 0);
-          const fr = Array.isArray(e.front) ? e.front : [];
-          const bk = Array.isArray(e.back) ? e.back : [];
-          for (const n of fr) {
-            if (!n) continue;
-            const nm = String(n);
-            bannedFrontNames.add(nm);
-            if (!rotationDetail.has(nm)) rotationDetail.set(nm, { front: [], back: [] });
-            rotationDetail.get(nm).front.push({ slot: slotName, t });
-          }
-          for (const n of bk) {
-            if (!n) continue;
-            const nm = String(n);
-            bannedBackNames.add(nm);
-            if (!rotationDetail.has(nm)) rotationDetail.set(nm, { front: [], back: [] });
-            rotationDetail.get(nm).back.push({ slot: slotName, t });
-          }
-        }
-        for (const v of rotationDetail.values()) {
-          v.front.sort((a,b)=> (b.t||0)-(a.t||0));
-          v.back.sort((a,b)=> (b.t||0)-(a.t||0));
-        }
+        const rotationData = buildHistoricalRotationData(selectedRotationSlotIds);
+        const rotationDetail = rotationData.rotationDetail;
+        const bannedFrontNames = rotationData.bannedFrontNames;
+        const bannedBackNames = rotationData.bannedBackNames;
 
         // Front/back row seat sets based on current orientation (boardAtTop)
         const displayFrontRow = boardAtTop ? 0 : (rows - 1);
@@ -2218,13 +2188,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
         if (rotationCount > 0) { out.push(`로테이션 중복 ${rotationCount}명:`); out.push(...rotationLines); }
         if (oldPartnerCount > 0) { if (out.length) out.push(""); out.push(`예전 짝꿍 중복 ${oldPartnerCount}건:`); out.push(...oldPartnerLines); }
         if (oldSeatCount > 0) { if (out.length) out.push(""); out.push(`예전 자리 중복 ${oldSeatCount}명:`); out.push(...oldSeatLines); }
-        if (out.length) {
-          violationsBar.textContent = out.join("\n");
-          violationsBar.style.display = "block";
-        } else {
-          violationsBar.style.display = "none";
-          violationsBar.textContent = "";
-        }
+        renderViolationsBar(out);
       }
       return;
     }
@@ -2239,13 +2203,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
         if (rotationCount > 0) { out.push(`로테이션 중복 ${rotationCount}명:`); out.push(...rotationLines); }
         if (oldPartnerCount > 0) { if (out.length) out.push(""); out.push(`예전 짝꿍 중복 ${oldPartnerCount}건:`); out.push(...oldPartnerLines); }
         if (oldSeatCount > 0) { if (out.length) out.push(""); out.push(`예전 자리 중복 ${oldSeatCount}명:`); out.push(...oldSeatLines); }
-        if (out.length) {
-          violationsBar.textContent = out.join("\n");
-          violationsBar.style.display = "block";
-        } else {
-          violationsBar.style.display = "none";
-          violationsBar.textContent = "";
-        }
+        renderViolationsBar(out);
       }
       return;
     }
@@ -2278,8 +2236,7 @@ for (let i = 0; i < orderedIds.length; i += size) {
     const hasOldSeat = (oldSeatCount > 0);
 
     if (!hasForbidden && !hasRotation && !hasOldPartner && !hasOldSeat) {
-      violationsBar.style.display = "none";
-      violationsBar.textContent = "";
+      renderViolationsBar([]);
       return;
     }
 
@@ -2309,9 +2266,38 @@ for (let i = 0; i < orderedIds.length; i += size) {
       out.push(`예전 자리 중복 ${oldSeatCount}명:`);
       out.push(...oldSeatLines);
     }
-    violationsBar.textContent = out.join("\n");
+    renderViolationsBar(out);
+  }
+  function renderViolationsBar(lines) {
+    if (!violationsBar) return;
+    const detailsText = (lines || []).join("\n");
+    if (!detailsText.trim()) {
+      violationsBar.style.display = "none";
+      violationsBar.innerHTML = "";
+      return;
+    }
+    violationsBar.innerHTML = `
+      <button type="button" class="violationsToggle" aria-expanded="false">
+        <span class="violationsToggleText">❗️주의 ❗️</span>
+        <span class="violationsToggleCaret">▾</span>
+      </button>
+      <div class="violationsDetails" hidden></div>
+    `;
+    const toggleBtn = violationsBar.querySelector('.violationsToggle');
+    const detailBox = violationsBar.querySelector('.violationsDetails');
+    if (detailBox) detailBox.textContent = detailsText;
+    if (toggleBtn && detailBox) {
+      toggleBtn.addEventListener('click', () => {
+        const expanded = toggleBtn.getAttribute('aria-expanded') === 'true';
+        toggleBtn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        detailBox.hidden = expanded;
+        violationsBar.classList.toggle('open', !expanded);
+      });
+    }
+    violationsBar.classList.remove('open');
     violationsBar.style.display = "block";
   }
+
 
   function ensureHistoryFor(name) { if (!history[name]) history[name] = { front: 0, back: 0 }; }
   function updateRotationCounts() {
@@ -3429,41 +3415,10 @@ function renderForbiddenGroupsFromTextarea() {
     const avoidBackRotation = !!(rotOn && rotateBack && rotateBack.checked);
 
     const selectedRotationSlotIds = getEffectiveReferenceSlotIds('rotation');
-    const rotationLedger = getFilteredRotationLedger(selectedRotationSlotIds);
-    const slotIndexList = loadSlotIndex ? loadSlotIndex() : [];
-    const slotNameById = new Map();
-    try { for (const s of slotIndexList) slotNameById.set(String(s.id), s.name); } catch(e) {}
-
-    const rotationDetail = new Map(); // name -> { front:[{slot,t}], back:[{slot,t}] }
-    const bannedFrontNames = new Set();
-    const bannedBackNames = new Set();
-    try {
-      for (const slotId of Object.keys(rotationLedger || {})) {
-        const e = rotationLedger[slotId];
-        if (!e) continue;
-        const slotName = slotNameById.get(String(slotId)) || String(slotId);
-        const t = Number(e.t || 0);
-        const fr = Array.isArray(e.front) ? e.front : [];
-        const bk = Array.isArray(e.back) ? e.back : [];
-        for (const n of fr) {
-          if (!n) continue;
-          if (avoidFrontRotation) bannedFrontNames.add(String(n));
-          if (!rotationDetail.has(String(n))) rotationDetail.set(String(n), { front: [], back: [] });
-          rotationDetail.get(String(n)).front.push({ slot: slotName, t });
-        }
-        for (const n of bk) {
-          if (!n) continue;
-          if (avoidBackRotation) bannedBackNames.add(String(n));
-          if (!rotationDetail.has(String(n))) rotationDetail.set(String(n), { front: [], back: [] });
-          rotationDetail.get(String(n)).back.push({ slot: slotName, t });
-        }
-      }
-      // 최신순 정렬(안내문구용)
-      for (const v of rotationDetail.values()) {
-        v.front.sort((a,b)=> (b.t||0)-(a.t||0));
-        v.back.sort((a,b)=> (b.t||0)-(a.t||0));
-      }
-    } catch(e) {}
+    const rawRotationData = buildHistoricalRotationData(selectedRotationSlotIds);
+    const rotationDetail = rawRotationData.rotationDetail;
+    const bannedFrontNames = avoidFrontRotation ? rawRotationData.bannedFrontNames : new Set();
+    const bannedBackNames = avoidBackRotation ? rawRotationData.bannedBackNames : new Set();
 
     // ✅ 로테이션(앞/뒷줄) 판단도 '화면에서 칠판과 가까운 줄' 기준으로
     const displayFrontRow = boardAtTop ? 0 : (rows - 1);
@@ -4699,10 +4654,8 @@ let _savingStudentsNow = false;
       oldPartnerDetail: new Map(),
     };
 
-    // 예전 자리 회피는 저장된 "전체 배치도" 기준으로,
-    // 현재 학생이 과거에 앉았던 "좌석 번호(= seat.id + 1)"를 다시 앉는지로 판단한다.
-    // 복잡한 배치에서도 동일한 좌석 번호 기준으로 일관되게 비교되도록
-    // 레이아웃 시그니처 일치 여부로 필터링하지 않는다.
+    // 예전 자리/짝꿍 회피는 "저장 당시 옵션 상태"와 무관하게
+    // 선택된 저장 배치도 원본을 다시 읽어 직접 계산합니다.
     const list = loadSlotIndex();
     const allowedIds = Array.isArray(slotIds) && slotIds.length ? new Set(slotIds.map(v => String(v))) : null;
     for (const slot of list) {
@@ -4754,6 +4707,53 @@ let _savingStudentsNow = false;
     return out;
   }
 
+  function buildHistoricalRotationData(slotIds = null) {
+    const out = {
+      bannedFrontNames: new Set(),
+      bannedBackNames: new Set(),
+      rotationDetail: new Map(),
+    };
+    const list = loadSlotIndex();
+    const allowedIds = Array.isArray(slotIds) && slotIds.length ? new Set(slotIds.map(v => String(v))) : null;
+    for (const slot of list) {
+      if (allowedIds && !allowedIds.has(String(slot?.id || ""))) continue;
+      const id = String(slot?.id || "");
+      if (!id) continue;
+      const raw = localStorage.getItem(slotKey(id));
+      if (!raw) continue;
+      try {
+        const snap = JSON.parse(raw);
+        const slotName = String(slot?.name || id);
+        const t = Number(snap?.savedAt || Date.now());
+        const fb = computeFrontBackNamesFromState({
+          cols: Number(snap?.cols ?? 0),
+          rows: Number(snap?.rows ?? 0),
+          boardAtTop: !!snap?.boardAtTop,
+          seats: Array.isArray(snap?.seats) ? snap.seats : [],
+        });
+        for (const n of (Array.isArray(fb.front) ? fb.front : [])) {
+          const nm = String(n || "");
+          if (!nm) continue;
+          out.bannedFrontNames.add(nm);
+          if (!out.rotationDetail.has(nm)) out.rotationDetail.set(nm, { front: [], back: [] });
+          out.rotationDetail.get(nm).front.push({ slot: slotName, t });
+        }
+        for (const n of (Array.isArray(fb.back) ? fb.back : [])) {
+          const nm = String(n || "");
+          if (!nm) continue;
+          out.bannedBackNames.add(nm);
+          if (!out.rotationDetail.has(nm)) out.rotationDetail.set(nm, { front: [], back: [] });
+          out.rotationDetail.get(nm).back.push({ slot: slotName, t });
+        }
+      } catch {}
+    }
+    for (const v of out.rotationDetail.values()) {
+      v.front.sort((a,b)=> (b.t||0)-(a.t||0));
+      v.back.sort((a,b)=> (b.t||0)-(a.t||0));
+    }
+    return out;
+  }
+
   // ===== Save Slots =====
   const SLOT_INDEX_KEY = "seatplan_slots_v015";
   const ROTATION_LEDGER_KEY = "seatplan_rotation_ledger_v1";
@@ -4790,31 +4790,11 @@ let _savingStudentsNow = false;
   }
   function getFilteredRotationLedger(slotIds) {
     const ledger = loadRotationLedger();
-    const allow = (Array.isArray(slotIds) && slotIds.length) ? new Set(slotIds.map(v => String(v))) : null;
+    if (!Array.isArray(slotIds) || !slotIds.length) return ledger;
+    const allow = new Set(slotIds.map(v => String(v)));
     const out = {};
-
-    const includeIds = allow
-      ? Array.from(allow)
-      : Array.from(new Set([
-          ...Object.keys(ledger || {}).map(v => String(v)),
-          ...getSavedSlotItems().map(v => String(v.id))
-        ]));
-
-    for (const id of includeIds) {
-      let entry = ledger && ledger[id] ? ledger[id] : null;
-      const hasFront = !!(entry && Array.isArray(entry.front) && entry.front.length);
-      const hasBack = !!(entry && Array.isArray(entry.back) && entry.back.length);
-      if (!hasFront && !hasBack) {
-        try {
-          const raw = localStorage.getItem(slotKey(id));
-          if (raw) {
-            const snap = JSON.parse(raw);
-            const fb = computeFrontBackNamesFromState(snap);
-            entry = { front: fb.front, back: fb.back, t: Number(snap.savedAt || Date.now()) };
-          }
-        } catch {}
-      }
-      if (entry) out[id] = entry;
+    for (const [id, val] of Object.entries(ledger || {})) {
+      if (allow.has(String(id))) out[id] = val;
     }
     return out;
   }
@@ -5073,13 +5053,17 @@ function updateRotationLedgerForSlot(slotId) {
     if (!id) return;
 
     const ledger = loadRotationLedger();
+
+    // 옵션에 따라 기록할 항목을 결정(덮어쓰기)
+    const rotOn = (useRotation ? !!useRotation.checked : true);
+    const frOn = rotOn && (rotateFront ? !!rotateFront.checked : false);
+    const bkOn = rotOn && (rotateBack ? !!rotateBack.checked : false);
+
     const fb = computeFrontBackNamesFromState({ cols, rows, boardAtTop, seats });
 
-    // 저장 시점의 앞줄/뒷줄 기록은 옵션과 무관하게 항상 저장합니다.
-    // 실제 회피 적용은 자동 배치 시 현재 체크된 옵션과 선택한 기준 배치도에 따라 결정합니다.
     ledger[id] = {
-      front: Array.isArray(fb.front) ? fb.front : [],
-      back:  Array.isArray(fb.back) ? fb.back : [],
+      front: frOn ? fb.front : [],
+      back:  bkOn ? fb.back : [],
       t: Date.now()
     };
 

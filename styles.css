@@ -662,8 +662,41 @@ button.multiline{
   background:rgba(239,68,68,.08);
   color:#fecaca;
   font-size:12px;
-  white-space:pre-wrap;
+  white-space:normal;
   display:none;
+}
+.violationsToggle{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:0;
+  background:transparent;
+  border:0;
+  color:inherit;
+  font:inherit;
+  font-weight:1000;
+  cursor:pointer;
+  text-align:left;
+}
+.violationsToggleText{
+  font-size:14px;
+}
+.violationsToggleCaret{
+  font-size:16px;
+  transition:transform .18s ease;
+}
+.violationsBar.open .violationsToggleCaret{
+  transform:rotate(180deg);
+}
+.violationsDetails{
+  margin-top:10px;
+  white-space:pre-wrap;
+  line-height:1.45;
+}
+.violationsDetails[hidden]{
+  display:none !important;
 }
 
 .log{
@@ -1052,14 +1085,10 @@ select{
   color:#b9c3d4;
 }
 .rotationChildToggle input{
-  accent-color:#3b82f6;
+  accent-color:#9ca3af;
 }
-.modalTitleNote{
-  margin-left:10px;
-  font-size:12px;
-  font-weight:700;
-  color:rgba(185,195,212,.88);
-  line-height:1.4;
+.rotationChildToggle input:checked{
+  accent-color:#3b82f6;
 }
 
 /* 섹션 제목 아래 설명(아랫줄) */

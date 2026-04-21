@@ -4790,11 +4790,31 @@ let _savingStudentsNow = false;
   }
   function getFilteredRotationLedger(slotIds) {
     const ledger = loadRotationLedger();
-    if (!Array.isArray(slotIds) || !slotIds.length) return ledger;
-    const allow = new Set(slotIds.map(v => String(v)));
+    const allow = (Array.isArray(slotIds) && slotIds.length) ? new Set(slotIds.map(v => String(v))) : null;
     const out = {};
-    for (const [id, val] of Object.entries(ledger || {})) {
-      if (allow.has(String(id))) out[id] = val;
+
+    const includeIds = allow
+      ? Array.from(allow)
+      : Array.from(new Set([
+          ...Object.keys(ledger || {}).map(v => String(v)),
+          ...getSavedSlotItems().map(v => String(v.id))
+        ]));
+
+    for (const id of includeIds) {
+      let entry = ledger && ledger[id] ? ledger[id] : null;
+      const hasFront = !!(entry && Array.isArray(entry.front) && entry.front.length);
+      const hasBack = !!(entry && Array.isArray(entry.back) && entry.back.length);
+      if (!hasFront && !hasBack) {
+        try {
+          const raw = localStorage.getItem(slotKey(id));
+          if (raw) {
+            const snap = JSON.parse(raw);
+            const fb = computeFrontBackNamesFromState(snap);
+            entry = { front: fb.front, back: fb.back, t: Number(snap.savedAt || Date.now()) };
+          }
+        } catch {}
+      }
+      if (entry) out[id] = entry;
     }
     return out;
   }
@@ -5053,17 +5073,13 @@ function updateRotationLedgerForSlot(slotId) {
     if (!id) return;
 
     const ledger = loadRotationLedger();
-
-    // 옵션에 따라 기록할 항목을 결정(덮어쓰기)
-    const rotOn = (useRotation ? !!useRotation.checked : true);
-    const frOn = rotOn && (rotateFront ? !!rotateFront.checked : false);
-    const bkOn = rotOn && (rotateBack ? !!rotateBack.checked : false);
-
     const fb = computeFrontBackNamesFromState({ cols, rows, boardAtTop, seats });
 
+    // 저장 시점의 앞줄/뒷줄 기록은 옵션과 무관하게 항상 저장합니다.
+    // 실제 회피 적용은 자동 배치 시 현재 체크된 옵션과 선택한 기준 배치도에 따라 결정합니다.
     ledger[id] = {
-      front: frOn ? fb.front : [],
-      back:  bkOn ? fb.back : [],
+      front: Array.isArray(fb.front) ? fb.front : [],
+      back:  Array.isArray(fb.back) ? fb.back : [],
       t: Date.now()
     };
 

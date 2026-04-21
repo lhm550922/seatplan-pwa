@@ -1052,7 +1052,14 @@ select{
   color:#b9c3d4;
 }
 .rotationChildToggle input{
-  accent-color:#9ca3af;
+  accent-color:#3b82f6;
+}
+.modalTitleNote{
+  margin-left:10px;
+  font-size:12px;
+  font-weight:700;
+  color:rgba(185,195,212,.88);
+  line-height:1.4;
 }
 
 /* 섹션 제목 아래 설명(아랫줄) */

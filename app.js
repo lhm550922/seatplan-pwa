@@ -326,7 +326,7 @@
   // - 변경 작업 전에 스냅샷을 쌓고, 버튼 클릭 시 이전 상태로 복원
   let undoStack = [];
   let redoStack = [];
-  const APP_VERSION = "2.2";
+  const APP_VERSION = "2.22.1";
 const UNDO_MAX = 30;
 
   function updateHistoryButtons(){
@@ -886,7 +886,7 @@ function centerToast(msg) {
       ["좌석", `${seatCount}개`],
       ["통로", `${voidCount}개`],
       ["학생 입력", `${studentCount}명(대략)`],
-      ["표시", `${(snap.ui?.showSeatNo ? "번호 " : "")}${(snap.ui?.showGroups ? "모둠 " : "")}${(snap.ui?.showGender ? "성별 " : "")}${(snap.ui?.showForbiddenDots ? "금지쌍" : "")}`.trim() || "없음"],
+      ["표시", `${(snap.ui?.showSeatNo ? "번호 " : "")}${(snap.ui?.showGroups ? "모둠 " : "")}${(snap.ui?.showGender ? "성별 " : "")}${(snap.ui?.showForbiddenDots ? "금지쌍/고정좌석" : "")}`.trim() || "없음"],
     ];
 
     hostEl.innerHTML = rows.map(([k,v]) =>
@@ -1909,12 +1909,23 @@ for (let i = 0; i < orderedIds.length; i += size) {
     return wrap;
   }
 
+  function shouldShowFixedMarkers() {
+    return !!(showForbiddenDots && showForbiddenDots.checked);
+  }
+
+  function shouldHideLockedSeatName(seat) {
+    if (!seat || !seat.locked || shouldShowFixedMarkers()) return false;
+    const hasVisibleAssignedStudents = seats.some((s) => s && !s.void && !s.locked && String(s.name || "").trim());
+    if (hasVisibleAssignedStudents) return false;
+    return seats.some((s) => s && !s.void && !s.locked && !String(s.name || "").trim());
+  }
+
   function makeSeatDiv(seat, vioSet) {
     const div = document.createElement("div");
     div.className = "seat";
     div.dataset.seatId = String(seat.id);
 
-    if (seat.locked) div.classList.add("locked");
+    if (seat.locked && shouldShowFixedMarkers()) div.classList.add("locked");
     if (seat.void) div.classList.add("void");
     if (vioSet.has(seat.id)) div.classList.add("violation");
     div.classList.add(...genderClass(seat).split(" ").filter(Boolean));
@@ -1930,12 +1941,14 @@ for (let i = 0; i < orderedIds.length; i += size) {
     }
 
     // ✅ 좌상단 핀(고정)
-    const pin = document.createElement("div");
-    pin.className = "pinBadge";
-    pin.dataset.action = "pinToggle";
-    pin.title = "고정 좌석(학생 고정)";
-    pin.textContent = "📌";
-    div.appendChild(pin);
+    if (shouldShowFixedMarkers()) {
+      const pin = document.createElement("div");
+      pin.className = "pinBadge";
+      pin.dataset.action = "pinToggle";
+      pin.title = "고정 좌석(학생 고정)";
+      pin.textContent = "📌";
+      div.appendChild(pin);
+    }
 
     // ✅ 우상단 삭제/복구
     const action = document.createElement("div");
@@ -1977,15 +1990,20 @@ for (let i = 0; i < orderedIds.length; i += size) {
       name.textContent = "통로";
       name.style.fontSize = `${Math.max(11, baseFont)}px`;
     } else if (seat.name) {
-      const len = seat.name.length;
+      const hiddenLockedName = shouldHideLockedSeatName(seat);
+      const visibleName = hiddenLockedName ? "" : seat.name;
+      const len = visibleName.length;
       let f = baseFont;
       if (len >= 6) f = baseFont - 1;
       if (len >= 9) f = baseFont - 2;
       if (len >= 12) f = baseFont - 3;
       name.style.fontSize = `${Math.max(11, f)}px`;
 
+      if (hiddenLockedName) {
+        name.textContent = "빈자리";
+        name.classList.add("empty");
       // 금지쌍 그룹 표시: 이름 옆 색 점(복수 가능)
-      if (showForbiddenDots && showForbiddenDots.checked && forbidColorMap && forbidColorMap.has(seat.name)) {
+      } else if (showForbiddenDots && showForbiddenDots.checked && forbidColorMap && forbidColorMap.has(seat.name)) {
         const info = forbidColorMap.get(seat.name);
         const colors = (info && info.colors && info.colors.length) ? info.colors : [];
 
@@ -2613,7 +2631,7 @@ function renderForbiddenGroupsFromTextarea() {
     if (showSeatNo) showSeatNo.checked = false;
     if (showGroups) showGroups.checked = false;
     if (showGender) showGender.checked = false;
-    if (showForbiddenDots) showForbiddenDots.checked = false;
+    if (showForbiddenDots) showForbiddenDots.checked = true;
 
     try { renderForbiddenGroupsFromTextarea(); } catch (e) {}
 
@@ -5259,7 +5277,7 @@ function currentSnapshot() {
     if (showSeatNo) showSeatNo.checked = !!ui.showSeatNo;
     if (showGroups) showGroups.checked = !!ui.showGroups;
     if (showGender) showGender.checked = !!ui.showGender;
-    if (showForbiddenDots) showForbiddenDots.checked = !!ui.showForbiddenDots;
+    if (showForbiddenDots) showForbiddenDots.checked = ui.showForbiddenDots ?? true;
     if (includeDiagonal) includeDiagonal.checked = !!ui.includeDiagonal;
     if (includeSameGroup) includeSameGroup.checked = !!ui.includeSameGroup;
     if (groupMode) groupMode.value = ui.groupMode ?? "none";
